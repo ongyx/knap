@@ -1,4 +1,4 @@
-package schema
+package converter
 
 // A non-thread-safe FIFO stack.
 type Stack[T any] struct {

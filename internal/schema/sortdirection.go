@@ -12,7 +12,7 @@ const (
 	DirectionDescending
 )
 
-// type asserts
+// interface asserts
 var _ json.Marshaler = (*SortDirection)(nil)
 var _ json.Unmarshaler = (*SortDirection)(nil)
 

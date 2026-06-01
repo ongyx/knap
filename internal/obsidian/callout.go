@@ -8,13 +8,42 @@ import (
 	"github.com/yuin/goldmark/text"
 )
 
-// Matches a callout.
+// interface asserts
+var _ ast.Node = (*Callout)(nil)
+var _ parser.InlineParser = (*calloutParser)(nil)
+
+// Matches a callout. First group is the callout name.
 var reCallout = regexp.MustCompile(`^\[\!(\w+)\]\s*`)
 
-var _ parser.InlineParser = (*calloutParser)(nil)
+// The callout node kind.
+var KindCallout = ast.NewNodeKind("Callout")
+
+// Represents a callout within a blockquote ('> [!info]').
+type Callout struct {
+	ast.BaseInline
+	// The name/type of the callout, e.g., 'info'.
+	Name []byte
+}
+
+// Creates a new callout with the given name.
+func NewCallout(name []byte) *Callout {
+	return &Callout{Name: name}
+}
+
+func (n *Callout) Kind() ast.NodeKind {
+	return KindCallout
+}
+
+func (n *Callout) Dump(source []byte, level int) {
+	m := map[string]string{
+		"Name": string(n.Name),
+	}
+	ast.DumpHelper(n, source, level, m, nil)
+}
 
 type calloutParser struct{}
 
+// Creates a new callout parser.
 func NewCalloutParser() parser.InlineParser {
 	return &calloutParser{}
 }

@@ -3,12 +3,14 @@ package obsidian
 import (
 	"testing"
 
+	"github.com/ongyx/knap/internal/testutil"
 	"github.com/yuin/goldmark"
-	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
+	"github.com/yuin/goldmark/util"
 )
 
-func TestObsidianCallout(t *testing.T) {
+func TestCallout(t *testing.T) {
 	tests := []struct {
 		name     string
 		source   string
@@ -29,35 +31,29 @@ func TestObsidianCallout(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			md := goldmark.New(
-				goldmark.WithExtensions(&Extender{}),
+				goldmark.WithParserOptions(
+					parser.WithInlineParsers(
+						util.Prioritized(NewCalloutParser(), 50),
+					),
+				),
 			)
 			source := []byte(tt.source)
 			doc := md.Parser().Parse(text.NewReader(source))
 
-			var found *Callout
-			ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-				if !entering {
-					return ast.WalkContinue, nil
-				}
-				if c, ok := n.(*Callout); ok {
-					found = c
-					return ast.WalkStop, nil
-				}
-				return ast.WalkContinue, nil
-			})
-
+			found := testutil.FindNode[*Callout](doc)
 			if found == nil {
 				t.Fatal("Callout node not found in AST")
 			}
 
-			if string(found.Name) != tt.expected {
-				t.Errorf("expected callout name %q, got %q", tt.expected, string(found.Name))
+			n := string(found.Name)
+			if n != tt.expected {
+				t.Errorf("expected callout name %q, got %q", tt.expected, n)
 			}
 		})
 	}
 }
 
-func TestObsidianCallout_Invalid(t *testing.T) {
+func TestCalloutInvalid(t *testing.T) {
 	tests := []struct {
 		name   string
 		source string
@@ -84,17 +80,7 @@ func TestObsidianCallout_Invalid(t *testing.T) {
 			source := []byte(tt.source)
 			doc := md.Parser().Parse(text.NewReader(source))
 
-			var found *Callout
-			ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
-				if !entering {
-					return ast.WalkContinue, nil
-				}
-				if _, ok := n.(*Callout); ok {
-					found = n.(*Callout)
-					return ast.WalkStop, nil
-				}
-				return ast.WalkContinue, nil
-			})
+			found := testutil.FindNode[*Callout](doc)
 
 			if found != nil {
 				t.Errorf("Callout node should not be found for source: %q", tt.source)

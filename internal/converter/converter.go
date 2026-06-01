@@ -36,16 +36,22 @@ type context struct {
 type Converter struct {
 	contexts Stack[context]
 	markdown goldmark.Markdown
+	resolver Resolver
 	source   []byte
 	root     *schema.Node
 }
 
-// Creates a new converter with the given wikilink resolver.
-func New(resolver wikilink.Resolver) *Converter {
-	md := goldmark.New(obsidian.DefaultOptions)
+// Creates a new converter with the given resolver.
+func New(res Resolver) *Converter {
+	if res == nil {
+		res = DefaultResolver
+	}
+
+	md := goldmark.New(obsidian.DefaultOptions(res))
 
 	return &Converter{
 		contexts: NewStack[context](0, 25),
+		resolver: res,
 		markdown: md,
 	}
 }
@@ -56,7 +62,6 @@ func (cv *Converter) Convert(src []byte) (*schema.Node, error) {
 	cv.root = nil
 
 	an := cv.markdown.Parser().Parse(text.NewReader(src))
-	an.Dump(src, 4)
 
 	if err := ast.Walk(an, cv.walk); err != nil {
 		return nil, err
@@ -66,41 +71,41 @@ func (cv *Converter) Convert(src []byte) (*schema.Node, error) {
 }
 
 func (cv *Converter) walk(anode ast.Node, entering bool) (ast.WalkStatus, error) {
-	if entering {
-		snode, marks, walkStatus, err := cv.astToSchema(anode)
-		if err != nil {
-			return walkStatus, err
-		}
-
-		ctx := context{snode, nil}
-
-		if parent, ok := cv.contexts.Peek(); ok {
-			if snode != nil {
-				// Append the node to its parent's content.
-				parent.snode.Content = append(parent.snode.Content, snode)
-			} else {
-				// No node was converted for this walk, preserve the parent node in the new context.
-				ctx.snode = parent.snode
-			}
-
-			ctx.marks = slices.Concat(parent.marks, marks)
-		} else {
-			// The first schema node is always the document root.
-			cv.root = snode
-		}
-
-		if ctx.snode == nil {
-			panic("walk: parent node is missing, no more context left")
-		}
-
-		// Push the schema node onto the context stack. This will be popped when the AST node has been walked.
-		cv.contexts.Push(ctx)
-		return walkStatus, nil
-	} else {
-		// Pop the context for this AST node.
+	if !entering {
+		// The AST node has been fully walked, pop its context.
 		cv.contexts.Pop()
 		return ast.WalkContinue, nil
 	}
+
+	snode, marks, walkStatus, err := cv.astToSchema(anode)
+	if err != nil {
+		return walkStatus, err
+	}
+
+	ctx := context{snode, nil}
+
+	if parent, ok := cv.contexts.Peek(); ok {
+		if snode != nil {
+			// Append the node to its parent's content.
+			parent.snode.Content = append(parent.snode.Content, snode)
+		} else {
+			// No node was converted for this walk, preserve the parent node in the new context.
+			ctx.snode = parent.snode
+		}
+
+		ctx.marks = slices.Concat(parent.marks, marks)
+	} else {
+		// The first schema node is always the document root.
+		cv.root = snode
+	}
+
+	if ctx.snode == nil {
+		panic("walk: parent node is missing, no more context left")
+	}
+
+	// Push the new context for this AST node.
+	cv.contexts.Push(ctx)
+	return walkStatus, nil
 }
 
 // Converts an AST node to a schema node.
@@ -115,6 +120,11 @@ func (cv *Converter) astToSchema(anode ast.Node) (snode *schema.Node, marks []sc
 		return snode, nil, ast.WalkContinue, nil
 
 	// Inline elements
+
+	case *ast.String:
+		// Strings must be emitted without any marks.
+		snode := schema.NewTextNode(string(an.Value))
+		return snode, nil, ast.WalkContinue, nil
 
 	case *ast.Text:
 		v := string(an.Value(cv.source))
@@ -247,8 +257,26 @@ func (cv *Converter) astToSchema(anode ast.Node) (snode *schema.Node, marks []sc
 		m := schema.NewLinkMark(string(an.Destination))
 		return nil, []schema.Mark{m}, ast.WalkContinue, nil
 
+	case *wikilink.Node:
+		// Since the AST is technically not being rendered, we need to drive the wikilink resolution ourselves.
+		dst, err := cv.resolver.ResolveWikilink(an)
+		if err != nil {
+			return nil, nil, ast.WalkStop, err
+		}
+
+		m := schema.NewLinkMark(string(dst))
+		return nil, []schema.Mark{m}, ast.WalkContinue, nil
+
 	case *ast.CodeSpan:
 		return nil, []schema.Mark{schema.NewInlineCodeMark()}, ast.WalkContinue, nil
+
+	case *obsidian.Highlight:
+		return nil, []schema.Mark{schema.NewHighlightMark("")}, ast.WalkContinue, nil
+
+	case *obsidian.TextColorSpan:
+		name := extractTextColor(an)
+		color := cv.resolver.ResolveColor(name)
+		return nil, []schema.Mark{schema.NewHighlightMark(color)}, ast.WalkContinue, nil
 	}
 
 	// It's completely valid to skip certain AST nodes because they were processed by their parent.
@@ -300,4 +328,12 @@ func extractCheckbox(li *ast.ListItem) (isChecked bool, ok bool) {
 	}
 
 	return cb.IsChecked, true
+}
+
+func extractTextColor(sp *obsidian.TextColorSpan) []byte {
+	if tc, ok := sp.FirstChild().(*obsidian.TextColor); ok {
+		return tc.Name
+	} else {
+		return nil
+	}
 }

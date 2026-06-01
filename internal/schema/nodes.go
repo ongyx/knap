@@ -28,12 +28,12 @@ func NewTextNode(text string) *Node {
 	return &Node{Type: NodeText, Text: text}
 }
 
-// Creates a line break node (<br>).
+// Creates a line break node.
 func NewLineBreakNode() *Node {
 	return &Node{Type: NodeLineBreak}
 }
 
-// Creates a thematic break node (<hr>).
+// Creates a thematic break node.
 // If isPageBreak is true, the line appears as a page break.
 func NewThematicBreakNode(isPageBreak bool) *Node {
 	var markup string
@@ -46,7 +46,7 @@ func NewThematicBreakNode(isPageBreak bool) *Node {
 	return &Node{Type: NodeThematicBreak, Attrs: map[string]any{"markup": markup}}
 }
 
-// Creates a heading node (<h1>, <h2>, <h3>, etc.) with the given level.
+// Creates a heading node with the given level.
 // level may be any number from 1 to 6.
 func NewHeadingNode(level int) *Node {
 	return &Node{
@@ -57,12 +57,12 @@ func NewHeadingNode(level int) *Node {
 	}
 }
 
-// Creates a paragraph node (<p>...</p>).
+// Creates a paragraph node.
 func NewParagraphNode() *Node {
 	return &Node{Type: NodeParagraph}
 }
 
-// Creates a block quote node (<blockquote>...</blockquote>).
+// Creates a block quote node.
 func NewBlockQuoteNode() *Node {
 	return &Node{Type: NodeBlockQuote}
 }
@@ -91,7 +91,7 @@ func NewMentionNode(mt MentionType, target uuid.UUID, author uuid.UUID, label st
 	}
 }
 
-// Creates a fenced code block node (<pre><code>...</code></pre>) with the given language and text.
+// Creates a fenced code block node with the given language and text.
 // For plain text, language should be set to "none".
 func NewFencedCodeBlockNode(language string) *Node {
 	return &Node{
@@ -103,17 +103,17 @@ func NewFencedCodeBlockNode(language string) *Node {
 	}
 }
 
-// Creates a bullet list node (<ul>...</ul>).
+// Creates a bullet list node.
 func NewBulletListNode() *Node {
 	return &Node{Type: NodeBulletList}
 }
 
-// Creates an ordered list node (<ol>...</ol>) with a starting number.
+// Creates an ordered list node with a starting number.
 func NewOrderedListNode(start int) *Node {
 	return &Node{Type: NodeOrderedList, Attrs: map[string]any{"order": start, "listStyle": "number"}}
 }
 
-// Creates a list item node (<li>...</li>).
+// Creates a list item node.
 func NewListItemNode() *Node {
 	return &Node{Type: NodeListItem}
 }
@@ -136,7 +136,7 @@ func NewChecklistItemNode(isChecked bool) *Node {
 	return &Node{Type: NodeChecklistItem, Attrs: map[string]any{"checked": isChecked}}
 }
 
-// Creates a table node (<table>).
+// Creates a table node.
 func NewTableNode() *Node {
 	return &Node{
 		Type: NodeTable,
@@ -146,13 +146,13 @@ func NewTableNode() *Node {
 	}
 }
 
-// Creates a table row node (<tr>).
+// Creates a table row node.
 func NewTableRowNode() *Node {
 	return &Node{Type: NodeTableRow}
 }
 
-// Creates a table cell node (<td>, <th>).
-// If header is true, the type is set to 'th'.
+// Creates a table cell node.
+// If header is true, the type is set to NodeTableHeader.
 func NewTableCellNode(isHeader bool) *Node {
 	var ty NodeType
 	if isHeader {

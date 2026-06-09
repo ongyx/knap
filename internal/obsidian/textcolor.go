@@ -9,27 +9,29 @@ import (
 )
 
 // interface asserts
-var _ ast.Node = (*Callout)(nil)
-var _ parser.InlineParser = (*calloutParser)(nil)
+var (
+	_ ast.Node            = (*Callout)(nil)
+	_ parser.InlineParser = (*calloutParser)(nil)
+)
 
-// Matches a color directive. First group is the color name.
-// NOTE: Color names must be at least one character and have no space:
+// Matches a span of colored text, where group 1 is the color ID and group 2 is the text.
+// Color IDs must be at least one character and have no whitespace.
 // https://github.com/Superschnizel/obsidian-fast-text-color/blob/master/src/utils/validateColorName.ts
-var reColor = regexp.MustCompile(`^\{(\w+)\}\s*`)
+var reTextColor = regexp.MustCompile(`^~=\{(\w+)\}\s*(.+?)=~`)
 
 // The text color node kind.
 var KindTextColor = ast.NewNodeKind("TextColor")
 
-// Represents a color directive within a text color span ('~={color}text=~').
+// Represents a text color ('~={color}text=~').
 type TextColor struct {
 	ast.BaseInline
-	// The name of the color, e.g., 'yellow'.
-	Name []byte
+	// The ID of the color, e.g., 'yellow'.
+	ID []byte
 }
 
-// Creates a new text color node with the given color name.
-func NewTextColor(name []byte) *TextColor {
-	return &TextColor{Name: name}
+// Creates a new text color node with the given color ID.
+func NewTextColor(id []byte) *TextColor {
+	return &TextColor{ID: id}
 }
 
 func (n *TextColor) Kind() ast.NodeKind {
@@ -38,7 +40,7 @@ func (n *TextColor) Kind() ast.NodeKind {
 
 func (n *TextColor) Dump(source []byte, level int) {
 	m := map[string]string{
-		"Name": string(n.Name),
+		"ID": string(n.ID),
 	}
 	ast.DumpHelper(n, source, level, m, nil)
 }
@@ -51,26 +53,22 @@ func NewTextColorParser() parser.InlineParser {
 }
 
 func (t *textColorParser) Trigger() []byte {
-	return []byte{'{'}
+	return []byte{'~'}
 }
 
-func (t *textColorParser) Parse(parent ast.Node, block text.Reader, pc parser.Context) ast.Node {
-	// The text color must appear after a TextColorSpan delimiter.
-	// Delimiters are only processed after all blocks are parsed, so we can't check for the TextColorSpan node directly.
-	// https://github.com/yuin/goldmark/#overview
-	d, ok := parent.LastChild().(*parser.Delimiter)
-	if !ok || d.Char != '~' || d.OriginalLength != 2 {
-		return nil
-	}
+func (t *textColorParser) Parse(_ ast.Node, block text.Reader, _ parser.Context) ast.Node {
+	line, seg := block.PeekLine()
 
-	line, _ := block.PeekLine()
-	m := reColor.FindSubmatchIndex(line)
+	m := reTextColor.FindSubmatchIndex(line)
 	if m == nil {
 		return nil
 	}
 
-	name := line[m[2]:m[3]]
-	block.Advance(m[1])
+	id := line[m[2]:m[3]]
+	seg = text.NewSegment(seg.Start+m[4], seg.Start+m[5])
 
-	return NewTextColor(name)
+	tc := NewTextColor(id)
+	tc.AppendChild(tc, ast.NewTextSegment(seg))
+	block.Advance(m[1])
+	return tc
 }

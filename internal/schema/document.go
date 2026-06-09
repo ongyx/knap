@@ -1,61 +1,58 @@
 package schema
 
 import (
-	"os"
 	"time"
 
-	"github.com/djherbis/times"
 	"github.com/google/uuid"
 )
 
 // Document represents an individual Outline document, including its content and metadata.
 type Document struct {
-	Metadata
-	Title            string     `json:"title"`
-	Data             *Node      `json:"data"`
-	CreatedById      string     `json:"createdById"`
-	CreatedByName    string     `json:"createdByName"`
-	CreatedByEmail   string     `json:"createdByEmail"`
-	PublishedAt      *time.Time `json:"publishedAt"`
-	FullWidth        bool       `json:"fullWidth"`
-	Template         bool       `json:"template"`
-	ParentDocumentId *string    `json:"parentDocumentId"`
+	*Metadata
+
+	// The document's display name.
+	Title string `json:"title"`
+	// The document's root node.
+	Data *Node `json:"data"`
+	// The UUID of the person who created the document.
+	CreatedById uuid.UUID `json:"createdById"`
+	// The name of the person who created the document.
+	CreatedByName string `json:"createdByName"`
+	// The email of the person who created the document.
+	CreatedByEmail string `json:"createdByEmail"`
+	// When the document was published.
+	PublishedAt *time.Time `json:"publishedAt"`
+	// Whether or not the document should be displayed with full width.
+	FullWidth bool `json:"fullWidth"`
+	// Whether or not this document is a template.
+	Template bool `json:"template"`
+	// The parent document's UUID, if any.
+	ParentDocumentId *uuid.UUID `json:"parentDocumentId"`
 }
 
-// Creates an empty document.
-func NewDocument() *Document {
-	id, _ := uuid.NewRandom()
-	urlid := NewURLID()
+// Creates an empty document with the given ID.
+func NewDocument(id uuid.UUID) *Document {
+	m := NewMetadata(id)
 
-	now := time.Now()
 	return &Document{
-		Metadata: Metadata{
-			ID:        id,
-			URLID:     urlid,
-			CreatedAt: now,
-			UpdatedAt: now,
-		},
-		PublishedAt: &now,
+		Metadata:    m,
+		PublishedAt: &m.CreatedAt,
 	}
 }
 
-// Sets the document timestamps from a file's metadata.
-func (d *Document) SetTimestamps(f *os.File) error {
-	// The reader is a file, query the file's timestamps to fill in the *At values.
-	// Getting creation time is surprisingly hard...
-	t, err := times.Stat(f.Name())
-	if err != nil {
+// Sets the identity for the CreatedBy* fields.
+func (d *Document) SetIdentity(i Identity) {
+	d.CreatedById = i.ID
+	d.CreatedByName = i.Name
+	d.CreatedByEmail = i.Email
+}
+
+// Sets the timestamps for the *At fields from a file.
+func (d *Document) SetTimestamps(filename string) error {
+	if err := d.Metadata.SetTimestamps(filename); err != nil {
 		return err
 	}
 
-	mtime := t.ModTime()
-	if t.HasBirthTime() {
-		d.CreatedAt = t.BirthTime()
-	} else {
-		d.CreatedAt = mtime
-	}
-	d.UpdatedAt = mtime
-	d.PublishedAt = &mtime
-
+	d.PublishedAt = &d.Metadata.UpdatedAt
 	return nil
 }

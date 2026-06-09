@@ -32,13 +32,15 @@ type context struct {
 	marks []schema.Mark
 }
 
-// Converter parses Markdown text to convert it to Prosemirror nodes.
+// Converter parses Markdown text to convert it to a Prosemirror document.
 type Converter struct {
 	contexts Stack[context]
 	markdown goldmark.Markdown
 	resolver Resolver
-	source   []byte
-	root     *schema.Node
+
+	source      []byte
+	markdownDoc *ast.Document
+	schemaDoc   *schema.Node
 }
 
 // Creates a new converter with the given resolver.
@@ -47,27 +49,30 @@ func New(res Resolver) *Converter {
 		res = DefaultResolver
 	}
 
-	md := goldmark.New(obsidian.DefaultOptions(res))
+	md := goldmark.New(obsidian.DefaultOptions())
 
 	return &Converter{
 		contexts: NewStack[context](0, 25),
-		resolver: res,
 		markdown: md,
+		resolver: res,
 	}
 }
 
 // Parses the Markdown text in src and converts its AST into a Prosemirror node.
 func (cv *Converter) Convert(src []byte) (*schema.Node, error) {
 	cv.source = src
-	cv.root = nil
+	cv.schemaDoc = nil
 
-	an := cv.markdown.Parser().Parse(text.NewReader(src))
+	p := cv.markdown.Parser()
+	r := text.NewReader(src)
+	// SAFETY: The root node is always a Document.
+	cv.markdownDoc = p.Parse(r).(*ast.Document)
 
-	if err := ast.Walk(an, cv.walk); err != nil {
+	if err := ast.Walk(cv.markdownDoc, cv.walk); err != nil {
 		return nil, err
 	}
 
-	return cv.root, nil
+	return cv.schemaDoc, nil
 }
 
 func (cv *Converter) walk(anode ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -96,7 +101,7 @@ func (cv *Converter) walk(anode ast.Node, entering bool) (ast.WalkStatus, error)
 		ctx.marks = slices.Concat(parent.marks, marks)
 	} else {
 		// The first schema node is always the document root.
-		cv.root = snode
+		cv.schemaDoc = snode
 	}
 
 	if ctx.snode == nil {
@@ -233,6 +238,13 @@ func (cv *Converter) astToSchema(anode ast.Node) (snode *schema.Node, marks []sc
 			}
 		}
 
+	// TODO: Handle images
+
+	case *wikilink.Node:
+		il := NewInternalLink(an, cv.source)
+		snode, err := cv.resolver.ResolveInternalLink(il)
+		return snode, nil, ast.WalkSkipChildren, err
+
 	// These elements below are special, because Outline represents them as 'marks' that are then applied to descendant text nodes instead of creating new nodes.
 
 	case *ast.Emphasis:
@@ -257,26 +269,17 @@ func (cv *Converter) astToSchema(anode ast.Node) (snode *schema.Node, marks []sc
 		m := schema.NewLinkMark(string(an.Destination))
 		return nil, []schema.Mark{m}, ast.WalkContinue, nil
 
-	case *wikilink.Node:
-		// Since the AST is technically not being rendered, we need to drive the wikilink resolution ourselves.
-		dst, err := cv.resolver.ResolveWikilink(an)
-		if err != nil {
-			return nil, nil, ast.WalkStop, err
-		}
-
-		m := schema.NewLinkMark(string(dst))
-		return nil, []schema.Mark{m}, ast.WalkContinue, nil
-
 	case *ast.CodeSpan:
 		return nil, []schema.Mark{schema.NewInlineCodeMark()}, ast.WalkContinue, nil
 
 	case *obsidian.Highlight:
 		return nil, []schema.Mark{schema.NewHighlightMark("")}, ast.WalkContinue, nil
 
-	case *obsidian.TextColorSpan:
-		name := extractTextColor(an)
-		color := cv.resolver.ResolveColor(name)
-		return nil, []schema.Mark{schema.NewHighlightMark(color)}, ast.WalkContinue, nil
+	case *obsidian.TextColor:
+		// While it is possible for the resolver to call OwnerDocument() instead,
+		// this incurs a traversal every time a color lookup is needed.
+		clr := cv.resolver.ResolveColor(cv.markdownDoc, an)
+		return nil, []schema.Mark{schema.NewHighlightMark(clr)}, ast.WalkContinue, nil
 	}
 
 	// It's completely valid to skip certain AST nodes because they were processed by their parent.
@@ -328,12 +331,4 @@ func extractCheckbox(li *ast.ListItem) (isChecked bool, ok bool) {
 	}
 
 	return cb.IsChecked, true
-}
-
-func extractTextColor(sp *obsidian.TextColorSpan) []byte {
-	if tc, ok := sp.FirstChild().(*obsidian.TextColor); ok {
-		return tc.Name
-	} else {
-		return nil
-	}
 }

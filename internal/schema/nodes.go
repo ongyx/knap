@@ -4,13 +4,20 @@ import (
 	"github.com/google/uuid"
 )
 
+const attachmentEndpoint = "/api/attachments.redirect?id="
+
 // Node represents a Prosemirror node defined by Outline's schema.
 type Node struct {
-	Type    NodeType       `json:"type"`
-	Text    string         `json:"text,omitempty"`
-	Attrs   map[string]any `json:"attrs,omitempty"`
-	Content []*Node        `json:"content,omitempty"`
-	Marks   []Mark         `json:"marks,omitempty"`
+	// The type of node this is.
+	Type string `json:"type"`
+	// The node's raw text.
+	Text string `json:"text,omitempty"`
+	// The node's attributes.
+	Attrs map[string]any `json:"attrs,omitempty"`
+	// The node's children.
+	Content []*Node `json:"content,omitempty"`
+	// The formatting marks to apply to this node.
+	Marks []Mark `json:"marks,omitempty"`
 }
 
 // Checks if the node is invalid.
@@ -75,21 +82,103 @@ func NewNoticeNode(nt NoticeType) *Node {
 	}
 }
 
-// Creates a mention node with the given type, ID of the target user/document/collection, and ID of the author who wrote the mention.
-func NewMentionNode(mt MentionType, target uuid.UUID, author uuid.UUID, label string) *Node {
-	id, _ := uuid.NewRandom()
+// Creates an image URL node with the given source, width, and height.
+func NewImageURLNode(src string, width, height int) *Node {
+	var w, h *int
+	if width > 0 {
+		w = &width
+	}
+	if height > 0 {
+		h = &height
+	}
 
 	return &Node{
-		Type: NodeMention,
+		Type: NodeImage,
 		Attrs: map[string]any{
-			"type":    mt.String(),
-			"label":   label,
-			"modelId": target.String(),
-			"actorId": author.String(),
-			"id":      id.String(),
+			"src":         src,
+			"width":       w,
+			"height":      h,
+			"alt":         "\n",
+			"source":      nil,
+			"layoutClass": nil,
+			"title":       nil,
 		},
 	}
 }
+
+// Creates an image file node with the given attachment ID, width, and height.
+func NewImageFileNode(id uuid.UUID, width, height int) *Node {
+	src := attachmentEndpoint + id.String()
+	return NewImageURLNode(src, width, height)
+}
+
+// Creates an image node with the given attachment ID, width, height, and title.
+func NewVideoNode(id uuid.UUID, title string) *Node {
+	src := attachmentEndpoint + id.String()
+
+	return &Node{
+		Type: NodeVideo,
+		Attrs: map[string]any{
+			"id":     nil,
+			"src":    src,
+			"width":  nil,
+			"height": nil,
+			"title":  title,
+		},
+	}
+}
+
+// Creates an attachment node with the given attachment ID, title, content type, and file size.
+func NewAttachmentNode(id uuid.UUID, title, contentType string, fileSize int64) *Node {
+	src := attachmentEndpoint + id.String()
+
+	return &Node{
+		Type: NodeAttachment,
+		Attrs: map[string]any{
+			"id":          nil,
+			"href":        src,
+			"title":       title,
+			"size":        fileSize,
+			"preview":     false,
+			"width":       nil,
+			"height":      nil,
+			"contentType": contentType,
+		},
+	}
+}
+
+// Creates an embed node with the given href.
+func NewEmbedNode(href string) *Node {
+	return &Node{
+		Type: NodeEmbed,
+		Attrs: map[string]any{
+			"href":   href,
+			"width":  nil,
+			"height": nil,
+		},
+	}
+}
+
+// Creates a mention node with the given type, ID of the target user/document/collection, and ID of the author who wrote the mention.
+// func NewMentionNode(mt MentionType, target uuid.UUID, author uuid.UUID, label string) *Node {
+// 	attrs := map[string]any{
+// 		"type":    mt.String(),
+// 		"label":   label,
+// 		"modelId": target.String(),
+// 		"actorId": author.String(),
+// 	}
+
+// 	if id, err := uuid.NewRandom(); err != nil {
+// 		attrs["id"] = nil
+// 	} else {
+// 		attrs["id"] = id.String()
+// 	}
+
+// 	return &Node{
+// 		Type:  NodeMention,
+// 		Attrs: attrs,
+// 	}
+// }
 
 // Creates a fenced code block node with the given language and text.
 // For plain text, language should be set to "none".
@@ -154,7 +243,7 @@ func NewTableRowNode() *Node {
 // Creates a table cell node.
 // If header is true, the type is set to NodeTableHeader.
 func NewTableCellNode(isHeader bool) *Node {
-	var ty NodeType
+	var ty string
 	if isHeader {
 		ty = NodeTableHeader
 	} else {

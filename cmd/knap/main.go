@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/google/uuid"
 	"github.com/ongyx/knap/internal/converter"
 	"github.com/ongyx/knap/internal/schema"
 )
@@ -26,8 +27,9 @@ func main() {
 	}
 	defer f.Close()
 
-	d := schema.NewDocument()
-	if err := d.SetTimestamps(f); err != nil {
+	id, _ := uuid.NewRandom()
+	d := schema.NewDocument(id)
+	if err := d.SetTimestamps(f.Name()); err != nil {
 		L.Printf("error: failed to set timestamps from file: %s\n", err)
 		os.Exit(1)
 	}

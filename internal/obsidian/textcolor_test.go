@@ -49,8 +49,7 @@ func TestTextColor(t *testing.T) {
 			md := goldmark.New(
 				goldmark.WithParserOptions(
 					parser.WithInlineParsers(
-						util.Prioritized(NewTextColorSpanParser(), 50),
-						util.Prioritized(NewTextColorParser(), 51),
+						util.Prioritized(NewTextColorParser(), 50),
 					),
 				),
 			)
@@ -59,14 +58,14 @@ func TestTextColor(t *testing.T) {
 
 			color := testutil.FindNode[*TextColor](doc)
 			if color == nil {
-				t.Fatal("TextColor node not found inside span")
+				t.Fatal("TextColor node not found")
 			}
 
-			if string(color.Name) != tt.expectedColor {
-				t.Errorf("expected color %q, got %q", tt.expectedColor, string(color.Name))
+			if string(color.ID) != tt.expectedColor {
+				t.Errorf("expected color %q, got %q", tt.expectedColor, string(color.ID))
 			}
 
-			txtNode := color.NextSibling().(*ast.Text)
+			txtNode := color.FirstChild().(*ast.Text)
 			if txtNode == nil {
 				t.Fatal("Expected text node after TextColor")
 			}
@@ -110,8 +109,7 @@ func TestTextColorInvalid(t *testing.T) {
 			md := goldmark.New(
 				goldmark.WithParserOptions(
 					parser.WithInlineParsers(
-						util.Prioritized(NewTextColorSpanParser(), 50),
-						util.Prioritized(NewTextColorParser(), 51),
+						util.Prioritized(NewTextColorParser(), 50),
 					),
 				),
 			)

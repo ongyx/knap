@@ -12,19 +12,38 @@ import (
 // interface asserts
 var _ goldmark.Extender = (*Extender)(nil)
 
-// Returns the default options for parsing Obsidian-style Markdown.
-func DefaultOptions(res wikilink.Resolver) goldmark.Option {
+// Returns the default options for parsing Obsidian Flavored Markdown.
+func DefaultOptions() goldmark.Option {
 	return goldmark.WithExtensions(
 		extension.Strikethrough,
 		extension.Table,
 		extension.TaskList,
-		meta.New(meta.WithTable()),
-		&wikilink.Extender{Resolver: res},
+		meta.New(meta.WithTable(), meta.WithStoresInDocument()),
+		&wikilink.Extender{},
 		&Extender{},
 	)
 }
 
-// Extends goldmark to parse Obsidian-specific syntax.
+// Extends goldmark to parse Obsidian Flavored Markdown.
+//
+// Currently, the following extensions are supported:
+//   - Internal links: '[[Link]]'
+//   - Strikethroughs: '~~Text~~'
+//   - Highlights: '==Text=='
+//   - Code blocks: '```'
+//   - Incomplete task: '- [ ]'
+//   - Completed task: '- [x]'
+//   - Callouts: '> [!note]'
+//   - Tables
+//
+// These extensions are not supported:
+//   - Embed files: '![[Link]]'
+//   - Block references: '![[Link#^id]]'
+//   - Defining a block: '^id'
+//   - Footnotes: '[^id]'
+//   - Comments: '%%Text%%'
+//
+// See https://obsidian.md/help/obsidian-flavored-markdown for more details.
 type Extender struct{}
 
 func (o *Extender) Extend(m goldmark.Markdown) {
@@ -32,8 +51,7 @@ func (o *Extender) Extend(m goldmark.Markdown) {
 		parser.WithInlineParsers(
 			util.Prioritized(NewCalloutParser(), 50),
 			util.Prioritized(NewHighlightParser(), 51),
-			util.Prioritized(NewTextColorSpanParser(), 52),
-			util.Prioritized(NewTextColorParser(), 53),
+			util.Prioritized(NewTextColorParser(), 52),
 		),
 	)
 }

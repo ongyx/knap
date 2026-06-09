@@ -26,8 +26,8 @@ func NewStrikethroughMark() Mark {
 }
 
 // Creates a link mark.
-func NewLinkMark(url string) Mark {
-	return Mark{Type: "link", Attrs: map[string]any{"href": url, "title": nil}}
+func NewLinkMark(href string) Mark {
+	return Mark{Type: "link", Attrs: map[string]any{"href": href, "title": nil}}
 }
 
 // Creates an inline code mark.

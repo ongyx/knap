@@ -1,66 +1,58 @@
 package exporter
 
 import (
-	"fmt"
 	"html"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 
 	"github.com/ongyx/knap/internal/converter"
 	"github.com/ongyx/knap/internal/obsidian"
 	"github.com/ongyx/knap/internal/schema"
+	"github.com/ongyx/knap/internal/util"
 	"github.com/yuin/goldmark/ast"
 )
 
 var _ converter.Resolver = (*NoteResolver)(nil)
 
-// Matches an image size in the format (w)x(h), where h is optional.
-var reImageSize = regexp.MustCompile(`^(\d+)(?:x(\d+))?$`)
-
-var slugifyHeadingOptions = (&SlugifyOptions{
+var slugifyHeadingOptions = &util.SlugifyOptions{
 	Remove: regexp.MustCompile(`[!"#$%&'.()*+,/:;<=>?@[\]\\^_` + "`" + `{|}~]`),
 	Lower:  true,
-}).Defaults()
+}
 
 // Resolver for a note being exported.
 type NoteResolver struct {
-	exporter  Exporter
-	vaultFile *VaultFile
+	exporter Exporter
+	note     *VaultFile
 }
 
 // Implements internal/converter.ResolveInternalLink.
-func (nr *NoteResolver) ResolveInternalLink(il converter.InternalLink) (*schema.Node, error) {
+func (nr *NoteResolver) ResolveInternalLink(link *converter.Link) (node *schema.Node, err error) {
 	v := nr.exporter.Vault()
 
 	var vf *VaultFile
-	if il.Target != nil {
-		// The internal link refers to another note/attachment. Lookup the vault file from the link text.
-		vf = v.Lookup(string(il.Target))
+	if link.URL.Path != "" {
+		// The internal link refers to another note or attachment. Lookup by its path.
+		vf = v.Lookup(string(link.URL.Path))
 		if vf == nil {
-			// The internal link is invalid.
-			return converter.DefaultResolver.ResolveInternalLink(il)
+			// The internal link is invalid, return the default representation.
+			return converter.DefaultResolver.ResolveInternalLink(link)
 		}
 	} else {
 		// The internal link refers to this note.
-		vf = nr.vaultFile
+		vf = nr.note
 	}
 
-	var (
-		node *schema.Node
-		err  error
-	)
-	if vf.FileType == VaultFileNote {
-		node, err = nr.handleNote(vf, il)
-	} else if vf.FileType == VaultFileImage && il.Embed {
-		node, err = nr.handleImage(vf, il)
-	} else if vf.FileType == VaultFileVideo && il.Embed {
-		node, err = nr.handleVideo(vf, il)
+	if vf.FileFormat == util.FileNote {
+		node, err = nr.handleNoteFile(vf, link)
+	} else if vf.FileFormat == util.FileImage && link.Embed {
+		node, err = nr.handleImageFile(vf, link)
+	} else if vf.FileFormat == util.FileVideo && link.Embed {
+		node, err = nr.handleVideoFile(vf, link)
 	} else {
 		// Any other file is exported as an attachment without special presentation.
-		node, err = nr.handleAttachment(vf, il)
+		node, err = nr.handleAttachment(vf, link)
 	}
 
 	return node, err
@@ -96,7 +88,7 @@ func (nr *NoteResolver) ResolveColor(doc *ast.Document, tc *obsidian.TextColor) 
 	return ""
 }
 
-func (nr *NoteResolver) handleAttachment(vf *VaultFile, il converter.InternalLink) (*schema.Node, error) {
+func (nr *NoteResolver) handleAttachment(vf *VaultFile, link *converter.Link) (*schema.Node, error) {
 	// Probe the file for its size and MIME content type.
 	f, err := os.Open(vf.AbsPath)
 	if err != nil {
@@ -105,8 +97,8 @@ func (nr *NoteResolver) handleAttachment(vf *VaultFile, il converter.InternalLin
 	defer f.Close()
 
 	var title string
-	if il.Title != nil {
-		title = string(il.Title)
+	if link.Text != nil {
+		title = string(link.Text)
 	} else {
 		title = filepath.Base(vf.AbsPath)
 	}
@@ -127,18 +119,18 @@ func (nr *NoteResolver) handleAttachment(vf *VaultFile, il converter.InternalLin
 	return schema.NewAttachmentNode(vf.ID, title, contentType, fi.Size()), nil
 }
 
-func (nr *NoteResolver) handleNote(vf *VaultFile, il converter.InternalLink) (*schema.Node, error) {
+func (nr *NoteResolver) handleNoteFile(vf *VaultFile, link *converter.Link) (*schema.Node, error) {
 	// References to other notes are converted into links to the document URL.
 	href := vf.DocumentURL()
 
-	if il.Fragment != nil {
+	if link.URL.Fragment != "" {
 		// Add the heading to the URL as a fragment.
-		href += slugifyHeading(string(il.Fragment))
+		href += slugifyHeading(link.URL.Fragment)
 	}
 
 	var title string
-	if il.Title != nil {
-		title = string(il.Title)
+	if link.Text != nil {
+		title = string(link.Text)
 	} else {
 		title = vf.Title()
 	}
@@ -148,47 +140,20 @@ func (nr *NoteResolver) handleNote(vf *VaultFile, il converter.InternalLink) (*s
 	return node, nil
 }
 
-func (nr *NoteResolver) handleImage(vf *VaultFile, il converter.InternalLink) (*schema.Node, error) {
-	w, h, err := parseEmbedSize(il)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse embed size: %w", err)
-	}
-
+func (nr *NoteResolver) handleImageFile(vf *VaultFile, link *converter.Link) (*schema.Node, error) {
+	w, h := converter.ParseEmbedSize(link.Text)
 	return schema.NewImageFileNode(vf.ID, w, h), nil
 }
 
-func (nr *NoteResolver) handleVideo(vf *VaultFile, il converter.InternalLink) (*schema.Node, error) {
-	// Obsidian doesn't support changing the presentation size of an embedded video, so sizes are ignored.
-	return schema.NewVideoNode(vf.ID, vf.Title()), nil
+func (nr *NoteResolver) handleVideoFile(vf *VaultFile, link *converter.Link) (*schema.Node, error) {
+	// Obsidian does not parse embed sizes for videos, so we do the same here.
+	return schema.NewVideoFileNode(vf.ID, vf.Title()), nil
 }
 
 // Slugifies a heading into a DOM ID.
 //
 // See https://github.com/outline/outline/blob/39623b90bd0846ac2316395143a73a3340e2dfd3/shared/editor/lib/headingToSlug.ts#L10.
 func slugifyHeading(str string) string {
-	slug := Slugify(str, slugifyHeadingOptions)
+	slug := util.Slugify(str, slugifyHeadingOptions)
 	return "h-" + html.EscapeString(slug)
-}
-
-func parseEmbedSize(il converter.InternalLink) (width, height int, err error) {
-	// Try to take the image dimensions from the title.
-	m := reImageSize.FindSubmatchIndex(il.Title)
-	if len(m) >= 4 {
-		// width
-		w := il.Title[m[2]:m[3]]
-		width, err = strconv.Atoi(string(w))
-		if err != nil {
-			return 0, 0, err
-		}
-	}
-	if len(m) == 6 {
-		// height
-		h := il.Title[m[4]:m[5]]
-		height, err = strconv.Atoi(string(h))
-		if err != nil {
-			return 0, 0, err
-		}
-	}
-
-	return width, height, nil
 }

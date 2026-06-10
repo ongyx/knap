@@ -1,4 +1,4 @@
-package exporter
+package util
 
 import (
 	"regexp"
@@ -41,8 +41,9 @@ func (o *SlugifyOptions) Defaults() *SlugifyOptions {
 // This is ported from the slugify library: see https://github.com/simov/slugify/blob/master/slugify.js for the original source code.
 func Slugify(str string, options *SlugifyOptions) string {
 	if options == nil {
-		options = (&SlugifyOptions{}).Defaults()
+		options = &SlugifyOptions{}
 	}
+	options.Defaults()
 
 	slug := options.Remove.ReplaceAllLiteralString(str, "")
 	slug = reSpace.ReplaceAllLiteralString(slug, options.Replacement)

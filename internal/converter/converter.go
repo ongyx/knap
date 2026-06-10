@@ -5,8 +5,10 @@ import (
 	"errors"
 	"slices"
 
+	"github.com/ongyx/knap/internal/collections"
 	"github.com/ongyx/knap/internal/obsidian"
 	"github.com/ongyx/knap/internal/schema"
+	"github.com/ongyx/knap/internal/util"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
 	east "github.com/yuin/goldmark/extension/ast"
@@ -34,7 +36,7 @@ type context struct {
 
 // Converter parses Markdown text to convert it to a Prosemirror document.
 type Converter struct {
-	contexts Stack[context]
+	contexts collections.Stack[context]
 	markdown goldmark.Markdown
 	resolver Resolver
 
@@ -52,7 +54,7 @@ func New(res Resolver) *Converter {
 	md := goldmark.New(obsidian.DefaultOptions())
 
 	return &Converter{
-		contexts: NewStack[context](0, 25),
+		contexts: collections.NewStack[context](0, 25),
 		markdown: md,
 		resolver: res,
 	}
@@ -238,11 +240,26 @@ func (cv *Converter) astToSchema(anode ast.Node) (snode *schema.Node, marks []sc
 			}
 		}
 
-	// TODO: Handle images
+	case *ast.Link, *ast.Image, *wikilink.Node:
+		var (
+			link  *Link
+			snode *schema.Node
+			err   error
+		)
 
-	case *wikilink.Node:
-		il := NewInternalLink(an, cv.source)
-		snode, err := cv.resolver.ResolveInternalLink(il)
+		link, err = NewLinkFromNode(an, cv.source)
+		if err != nil {
+			return nil, nil, ast.WalkStop, err
+		}
+
+		// Internal links must be resolved externally as they may reference other notes or attachments in a vault.
+		if link.IsInternal() {
+			snode, err = cv.resolver.ResolveInternalLink(link)
+		} else {
+			snode, err = resolveExternalLink(link)
+		}
+
+		// Do not handle the child nodes within the link-like nodes.
 		return snode, nil, ast.WalkSkipChildren, err
 
 	// These elements below are special, because Outline represents them as 'marks' that are then applied to descendant text nodes instead of creating new nodes.
@@ -264,10 +281,6 @@ func (cv *Converter) astToSchema(anode ast.Node) (snode *schema.Node, marks []sc
 
 	case *east.Strikethrough:
 		return nil, []schema.Mark{schema.NewStrikethroughMark()}, ast.WalkContinue, nil
-
-	case *ast.Link:
-		m := schema.NewLinkMark(string(an.Destination))
-		return nil, []schema.Mark{m}, ast.WalkContinue, nil
 
 	case *ast.CodeSpan:
 		return nil, []schema.Mark{schema.NewInlineCodeMark()}, ast.WalkContinue, nil
@@ -331,4 +344,25 @@ func extractCheckbox(li *ast.ListItem) (isChecked bool, ok bool) {
 	}
 
 	return cb.IsChecked, true
+}
+
+func resolveExternalLink(link *Link) (node *schema.Node, err error) {
+	if link.Embed {
+		ff := util.ParseFileFormat(link.URL.Path)
+
+		// If the URL points to an image file, generate an image URL node.
+		if ff == util.FileImage {
+			w, h := ParseEmbedSize(link.Text)
+			return schema.NewImageURLNode(link.URL.String(), w, h), nil
+		}
+
+		// Generate a regular embed node.
+		return schema.NewEmbedNode(link.URL.String()), nil
+	}
+
+	// Generate a text node with a link attached to it.
+	// Links are a little special; it is a formatting mark attached to a text node instead of being a standalone node.
+	tn := schema.NewTextNode(string(link.Text))
+	tn.Marks = append(tn.Marks, schema.NewLinkMark(link.URL.String()))
+	return tn, nil
 }

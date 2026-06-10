@@ -8,18 +8,12 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+
+	"github.com/ongyx/knap/internal/util"
 )
 
 const (
 	obsidianConfigFolder = ".obsidian"
-	// Obsidian only recognizes this extension as a note within a vault.
-	noteExtension = ".md"
-)
-
-// https://obsidian.md/help/file-formats
-var (
-	imageExtensions = NewSet(".avif", ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".svg", ".webp")
-	videoExtensions = NewSet(".flac", ".m4a", ".mp3", ".ogg", ".wav", ".webm", ".3gp")
 )
 
 // Error returned by Vault.Scan() when the folder is not an Obsidian vault.
@@ -91,7 +85,7 @@ func (v *Vault) Lookup(name string) *VaultFile {
 
 	if filepath.Ext(name) == "" {
 		// Notes may elide the '.md' file extension in their name.
-		if vf := v.uniqueFiles[name+noteExtension]; vf != nil {
+		if vf := v.uniqueFiles[name+util.NoteExtension]; vf != nil {
 			return vf
 		}
 	}

@@ -15,8 +15,8 @@ var DefaultResolver Resolver = &defaultResolver{}
 
 // Resolver resolves certain elements in the Markdown AST to output an Outline document correctly.
 type Resolver interface {
-	// Resolves an internal link to an Outline schema node.
-	ResolveInternalLink(il InternalLink) (*schema.Node, error)
+	// Resolves an internal link to a schema node.
+	ResolveInternalLink(link *Link) (*schema.Node, error)
 
 	// Resolves a text color to a hex color by name.
 	// If an invalid or empty string is returned, the resulting highlight will default to yellow in Outline.
@@ -26,27 +26,31 @@ type Resolver interface {
 type defaultResolver struct {
 }
 
-func (r *defaultResolver) ResolveInternalLink(il InternalLink) (*schema.Node, error) {
+func (r *defaultResolver) ResolveInternalLink(link *Link) (*schema.Node, error) {
 	var buf bytes.Buffer
 
-	if il.Embed {
+	if link.Embed {
 		buf.WriteByte('!')
 	}
 
-	buf.WriteString("[[")
-	buf.Write(il.Target)
+	if link.IsInternal() {
+		buf.WriteString("[[")
+		buf.WriteString(link.URL.String())
 
-	if il.Fragment != nil {
-		buf.WriteByte('#')
-		buf.Write(il.Fragment)
+		if link.Text != nil {
+			buf.WriteByte('|')
+			buf.Write(link.Text)
+		}
+
+		buf.WriteString("]]")
+	} else {
+		buf.WriteByte('[')
+		buf.Write(link.Text)
+		buf.WriteByte(']')
+		buf.WriteByte('(')
+		buf.WriteString(link.URL.String())
+		buf.WriteByte(')')
 	}
-
-	if il.Title != nil {
-		buf.WriteByte('|')
-		buf.Write(il.Title)
-	}
-
-	buf.WriteString("]]")
 
 	return schema.NewTextNode(buf.String()), nil
 }

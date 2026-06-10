@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/ongyx/knap/internal/schema"
+	"github.com/ongyx/knap/internal/util"
 )
 
 // TODO: Implement PDF embeds
@@ -17,8 +18,8 @@ type VaultFile struct {
 	AbsPath string
 	// The relative path to the file from the vault root. The path separator is a slash '/' by Obsidian convention.
 	RelPath string
-	// The type of file this is.
-	FileType VaultFileType
+	// The file format.
+	FileFormat util.FileFormat
 	// The UUID generated for this file.
 	ID uuid.UUID
 	// The URLID generated for this file.
@@ -32,17 +33,6 @@ func NewVaultFile(path, vaultPath string) (*VaultFile, error) {
 		return nil, err
 	}
 
-	ft := VaultFileOther
-	ext := filepath.Ext(rel)
-	// Check the file extension to determine the file type.
-	if ext == noteExtension {
-		ft = VaultFileNote
-	} else if imageExtensions.Contains(ext) {
-		ft = VaultFileImage
-	} else if videoExtensions.Contains(ext) {
-		ft = VaultFileVideo
-	}
-
 	id, err := uuid.NewRandom()
 	if err != nil {
 		return nil, err
@@ -51,11 +41,11 @@ func NewVaultFile(path, vaultPath string) (*VaultFile, error) {
 	urlid := schema.NewURLID()
 
 	return &VaultFile{
-		AbsPath:  path,
-		RelPath:  filepath.ToSlash(rel),
-		FileType: ft,
-		ID:       id,
-		URLID:    urlid,
+		AbsPath:    path,
+		RelPath:    filepath.ToSlash(rel),
+		FileFormat: util.ParseFileFormat(path),
+		ID:         id,
+		URLID:      urlid,
 	}, nil
 }
 
@@ -71,7 +61,7 @@ func (vf *VaultFile) Title() string {
 // For more details, please refer to: https://github.com/outline/outline/blob/88de417a21c260e32ecc9c89d756661c54064603/server/models/Document.ts#L430
 func (vf *VaultFile) DocumentURL() string {
 	title := vf.Title()
-	slug := Slugify(title, nil)
+	slug := util.Slugify(title, nil)
 
 	urlid := string(vf.URLID)
 

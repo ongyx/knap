@@ -83,6 +83,7 @@ func NewNoticeNode(nt NoticeType) *Node {
 }
 
 // Creates an image URL node with the given source, width, and height.
+// If width or height is 0, they are emitted as nil (null) in the node.
 func NewImageURLNode(src string, width, height int) *Node {
 	var w, h *int
 	if width > 0 {
@@ -107,13 +108,14 @@ func NewImageURLNode(src string, width, height int) *Node {
 }
 
 // Creates an image file node with the given attachment ID, width, and height.
+// If width or height is 0, they are emitted as nil (null) in the node.
 func NewImageFileNode(id uuid.UUID, width, height int) *Node {
 	src := attachmentEndpoint + id.String()
 	return NewImageURLNode(src, width, height)
 }
 
-// Creates an image node with the given attachment ID, width, height, and title.
-func NewVideoNode(id uuid.UUID, title string) *Node {
+// Creates a video file node with the given attachment ID, width, height, and title.
+func NewVideoFileNode(id uuid.UUID, title string) *Node {
 	src := attachmentEndpoint + id.String()
 
 	return &Node{

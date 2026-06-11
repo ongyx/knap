@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ongyx/knap/internal/prosemirror"
 	"github.com/ongyx/knap/internal/util"
 )
 
@@ -14,7 +15,7 @@ type CollectionMetadata struct {
 	// The name of the collection.
 	Name string `json:"name"`
 	// The document schema node representing the welcome page.
-	Data *Node `json:"data"`
+	Data *prosemirror.Node `json:"data"`
 	// The sorting criteria.
 	Sort Sort `json:"sort"`
 	// The sort index.
@@ -36,8 +37,8 @@ type CollectionMetadata struct {
 // Creates an empty collection with the given ID, URLID, and name.
 func NewCollectionMetadata(id uuid.UUID, urlid util.URLID, name string) *CollectionMetadata {
 	m := NewCommonMetadata(id, urlid)
-	d := NewDocumentNode()
-	d.Content = append(d.Content, NewParagraphNode())
+	d := prosemirror.NewDocumentNode()
+	d.Content = append(d.Content, prosemirror.NewParagraphNode())
 
 	return &CollectionMetadata{
 		BaseMetadata:       m,

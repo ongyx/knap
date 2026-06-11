@@ -9,7 +9,7 @@ import (
 	"github.com/ongyx/knap/internal/collections"
 	"github.com/ongyx/knap/internal/converter"
 	"github.com/ongyx/knap/internal/obsidian"
-	"github.com/ongyx/knap/internal/schema"
+	"github.com/ongyx/knap/internal/prosemirror"
 	"github.com/ongyx/knap/internal/util"
 	"github.com/yuin/goldmark/ast"
 )
@@ -43,7 +43,7 @@ func (nr *NoteResolver) Attachments() *collections.Set[*VaultFile] {
 }
 
 // Implements internal/converter.ResolveInternalLink.
-func (nr *NoteResolver) ResolveInternalLink(link *converter.Link) (node *schema.Node, err error) {
+func (nr *NoteResolver) ResolveInternalLink(link *converter.Link) (node *prosemirror.Node, err error) {
 	v := nr.exporter.Vault()
 
 	var vf *VaultFile
@@ -108,17 +108,17 @@ func (nr *NoteResolver) ResolveColor(doc *ast.Document, tc *obsidian.TextColor) 
 	return ""
 }
 
-func (nr *NoteResolver) handleAttachment(vf *VaultFile, link *converter.Link) (*schema.Node, error) {
+func (nr *NoteResolver) handleAttachment(vf *VaultFile, link *converter.Link) (*prosemirror.Node, error) {
 	title := link.Text
 	if title == "" {
 		title = filepath.Base(vf.AbsPath)
 	}
 
 	// Generate an attachment node.
-	return schema.NewAttachmentNode(vf.ID, title, vf.ContentType, vf.Size), nil
+	return prosemirror.NewAttachmentNode(vf.ID, title, vf.ContentType, vf.Size), nil
 }
 
-func (nr *NoteResolver) handleNoteFile(vf *VaultFile, link *converter.Link) (*schema.Node, error) {
+func (nr *NoteResolver) handleNoteFile(vf *VaultFile, link *converter.Link) (*prosemirror.Node, error) {
 	// References to other notes are converted into links to the document URL.
 	href := vf.URLID.GenerateDocumentURL(vf.Title())
 	fmt.Printf("resolving reference to %#v -> %q\n", vf, href)
@@ -133,19 +133,19 @@ func (nr *NoteResolver) handleNoteFile(vf *VaultFile, link *converter.Link) (*sc
 		title = vf.Title()
 	}
 
-	node := schema.NewTextNode(title)
-	node.Marks = append(node.Marks, schema.NewLinkMark(href))
+	node := prosemirror.NewTextNode(title)
+	node.Marks = append(node.Marks, prosemirror.NewLinkMark(href))
 	return node, nil
 }
 
-func (nr *NoteResolver) handleImageFile(vf *VaultFile, link *converter.Link) (*schema.Node, error) {
+func (nr *NoteResolver) handleImageFile(vf *VaultFile, link *converter.Link) (*prosemirror.Node, error) {
 	w, h, _ := converter.ParseEmbedSize(link.Text)
-	return schema.NewImageFileNode(vf.ID, w, h), nil
+	return prosemirror.NewImageFileNode(vf.ID, w, h), nil
 }
 
-func (nr *NoteResolver) handleVideoFile(vf *VaultFile, link *converter.Link) (*schema.Node, error) {
+func (nr *NoteResolver) handleVideoFile(vf *VaultFile, link *converter.Link) (*prosemirror.Node, error) {
 	// Obsidian does not parse embed sizes for videos, so we do the same here.
-	return schema.NewVideoFileNode(vf.ID, vf.Title()), nil
+	return prosemirror.NewVideoFileNode(vf.ID, vf.Title()), nil
 }
 
 // Slugifies a heading into a DOM ID.

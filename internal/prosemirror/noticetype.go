@@ -1,4 +1,4 @@
-package schema
+package prosemirror
 
 import "github.com/ongyx/knap/internal/obsidian"
 

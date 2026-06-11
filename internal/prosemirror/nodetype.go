@@ -1,4 +1,4 @@
-package schema
+package prosemirror
 
 const (
 	NodeInvalid       = ""

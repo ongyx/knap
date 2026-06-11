@@ -1,4 +1,4 @@
-package schema
+package prosemirror
 
 const (
 	// The mention targets a user.

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ongyx/knap/internal/prosemirror"
 	"github.com/ongyx/knap/internal/util"
 )
 
@@ -14,7 +15,7 @@ type Document struct {
 	// The display name.
 	Title string `json:"title"`
 	// The document schema node.
-	Data *Node `json:"data"`
+	Data *prosemirror.Node `json:"data"`
 	// The UUID of the person who created the document.
 	CreatedById uuid.UUID `json:"createdById"`
 	// The name of the person who created the document.
@@ -34,8 +35,8 @@ type Document struct {
 // Creates an empty document with the given ID, title, and identity. [Document.Data] is set to an empty document node.
 func NewDocument(id uuid.UUID, urlid util.URLID, title string, idn Identity) *Document {
 	m := NewCommonMetadata(id, urlid)
-	d := NewDocumentNode()
-	d.Content = append(d.Content, NewParagraphNode())
+	d := prosemirror.NewDocumentNode()
+	d.Content = append(d.Content, prosemirror.NewParagraphNode())
 
 	return &Document{
 		BaseMetadata:   m,

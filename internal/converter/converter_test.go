@@ -4,26 +4,26 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/ongyx/knap/internal/schema"
+	"github.com/ongyx/knap/internal/prosemirror"
 )
 
 func TestConverter_Convert(t *testing.T) {
 	tests := []struct {
 		name     string
 		markdown string
-		expected *schema.Node
+		expected *prosemirror.Node
 	}{
 		{
 			name:     "simple paragraph",
 			markdown: "Hello world",
-			expected: &schema.Node{
-				Type: schema.NodeDocument,
-				Content: []*schema.Node{
+			expected: &prosemirror.Node{
+				Type: prosemirror.NodeDocument,
+				Content: []*prosemirror.Node{
 					{
-						Type: schema.NodeParagraph,
-						Content: []*schema.Node{
+						Type: prosemirror.NodeParagraph,
+						Content: []*prosemirror.Node{
 							{
-								Type: schema.NodeText,
+								Type: prosemirror.NodeText,
 								Text: "Hello world",
 							},
 						},
@@ -34,17 +34,17 @@ func TestConverter_Convert(t *testing.T) {
 		{
 			name:     "heading",
 			markdown: "# Title",
-			expected: &schema.Node{
-				Type: schema.NodeDocument,
-				Content: []*schema.Node{
+			expected: &prosemirror.Node{
+				Type: prosemirror.NodeDocument,
+				Content: []*prosemirror.Node{
 					{
-						Type: schema.NodeHeading,
+						Type: prosemirror.NodeHeading,
 						Attrs: map[string]any{
 							"level": float64(1),
 						},
-						Content: []*schema.Node{
+						Content: []*prosemirror.Node{
 							{
-								Type: schema.NodeText,
+								Type: prosemirror.NodeText,
 								Text: "Title",
 							},
 						},
@@ -55,27 +55,27 @@ func TestConverter_Convert(t *testing.T) {
 		{
 			name:     "bold and italic",
 			markdown: "**bold** and *italic*",
-			expected: &schema.Node{
-				Type: schema.NodeDocument,
-				Content: []*schema.Node{
+			expected: &prosemirror.Node{
+				Type: prosemirror.NodeDocument,
+				Content: []*prosemirror.Node{
 					{
-						Type: schema.NodeParagraph,
-						Content: []*schema.Node{
+						Type: prosemirror.NodeParagraph,
+						Content: []*prosemirror.Node{
 							{
-								Type: schema.NodeText,
+								Type: prosemirror.NodeText,
 								Text: "bold",
-								Marks: []schema.Mark{
+								Marks: []prosemirror.Mark{
 									{Type: "strong"},
 								},
 							},
 							{
-								Type: schema.NodeText,
+								Type: prosemirror.NodeText,
 								Text: " and ",
 							},
 							{
-								Type: schema.NodeText,
+								Type: prosemirror.NodeText,
 								Text: "italic",
-								Marks: []schema.Mark{
+								Marks: []prosemirror.Mark{
 									{Type: "em"},
 								},
 							},
@@ -87,20 +87,20 @@ func TestConverter_Convert(t *testing.T) {
 		{
 			name:     "bullet list",
 			markdown: "- item 1\n- item 2",
-			expected: &schema.Node{
-				Type: schema.NodeDocument,
-				Content: []*schema.Node{
+			expected: &prosemirror.Node{
+				Type: prosemirror.NodeDocument,
+				Content: []*prosemirror.Node{
 					{
-						Type: schema.NodeBulletList,
-						Content: []*schema.Node{
+						Type: prosemirror.NodeBulletList,
+						Content: []*prosemirror.Node{
 							{
-								Type: schema.NodeListItem,
-								Content: []*schema.Node{
+								Type: prosemirror.NodeListItem,
+								Content: []*prosemirror.Node{
 									{
-										Type: schema.NodeParagraph,
-										Content: []*schema.Node{
+										Type: prosemirror.NodeParagraph,
+										Content: []*prosemirror.Node{
 											{
-												Type: schema.NodeText,
+												Type: prosemirror.NodeText,
 												Text: "item 1",
 											},
 										},
@@ -108,13 +108,13 @@ func TestConverter_Convert(t *testing.T) {
 								},
 							},
 							{
-								Type: schema.NodeListItem,
-								Content: []*schema.Node{
+								Type: prosemirror.NodeListItem,
+								Content: []*prosemirror.Node{
 									{
-										Type: schema.NodeParagraph,
-										Content: []*schema.Node{
+										Type: prosemirror.NodeParagraph,
+										Content: []*prosemirror.Node{
 											{
-												Type: schema.NodeText,
+												Type: prosemirror.NodeText,
 												Text: "item 2",
 											},
 										},
@@ -129,20 +129,20 @@ func TestConverter_Convert(t *testing.T) {
 		{
 			name:     "notice",
 			markdown: "> [!info]\n> info content",
-			expected: &schema.Node{
-				Type: schema.NodeDocument,
-				Content: []*schema.Node{
+			expected: &prosemirror.Node{
+				Type: prosemirror.NodeDocument,
+				Content: []*prosemirror.Node{
 					{
-						Type: schema.NodeNotice,
+						Type: prosemirror.NodeNotice,
 						Attrs: map[string]any{
 							"style": "info",
 						},
-						Content: []*schema.Node{
+						Content: []*prosemirror.Node{
 							{
-								Type: schema.NodeParagraph,
-								Content: []*schema.Node{
+								Type: prosemirror.NodeParagraph,
+								Content: []*prosemirror.Node{
 									{
-										Type: schema.NodeText,
+										Type: prosemirror.NodeText,
 										Text: "info content",
 									},
 								},
@@ -162,7 +162,7 @@ func TestConverter_Convert(t *testing.T) {
 				t.Fatalf("Convert() error = %v", err)
 			}
 
-			// Use JSON marshaling for deep comparison as schema.Node might have complex nesting
+			// Use JSON marshaling for deep comparison as prosemirror.Node might have complex nesting
 			gotJSON, _ := json.Marshal(got)
 			expectedJSON, _ := json.Marshal(tt.expected)
 

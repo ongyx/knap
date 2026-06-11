@@ -1,4 +1,4 @@
-package schema
+package prosemirror
 
 import (
 	"github.com/google/uuid"
@@ -6,7 +6,7 @@ import (
 
 const attachmentEndpoint = "/api/attachments.redirect?id="
 
-// Node represents a Prosemirror node defined by Outline's schema.
+// Node represents a Prosemirror node.
 type Node struct {
 	// The type of node this is.
 	Type string `json:"type"`

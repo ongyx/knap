@@ -85,7 +85,13 @@ func (v *Vault) Lookup(name string) *VaultFile {
 
 	if filepath.Ext(name) == "" {
 		// Notes may elide the '.md' file extension in their name.
-		if vf := v.uniqueFiles[name+util.NoteExtension]; vf != nil {
+		notename := name + util.NoteExtension
+
+		if vf := v.uniqueFiles[notename]; vf != nil {
+			return vf
+		}
+
+		if vf := v.allFiles[notename]; vf != nil {
 			return vf
 		}
 	}

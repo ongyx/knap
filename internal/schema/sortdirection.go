@@ -7,26 +7,28 @@ import (
 
 const (
 	// Sort in ascending order.
-	DirectionAscending SortDirection = iota
+	SortAscending SortDirection = iota
 	// Sort in descending order.
-	DirectionDescending
+	SortDescending
 )
 
 // interface asserts
-var _ json.Marshaler = (*SortDirection)(nil)
-var _ json.Unmarshaler = (*SortDirection)(nil)
+var (
+	_ json.Marshaler   = (*SortDirection)(nil)
+	_ json.Unmarshaler = (*SortDirection)(nil)
+)
 
 // Error returned from SortDirection.MarshalJSON()/UnmarshalJSON() if the value is invalid.
 var ErrSortDirectionInvalid = errors.New("sort direction is invalid")
 
-// The direction to sort documents in for a collection.
+// SortDirection is a direction to sort documents by in a collection.
 type SortDirection int
 
 func (sd SortDirection) String() string {
 	switch sd {
-	case DirectionAscending:
+	case SortAscending:
 		return "asc"
-	case DirectionDescending:
+	case SortDescending:
 		return "desc"
 	default:
 		return ""
@@ -39,7 +41,7 @@ func (sd SortDirection) MarshalJSON() ([]byte, error) {
 		return nil, ErrSortDirectionInvalid
 	}
 
-	return []byte(s), nil
+	return json.Marshal(s)
 }
 
 func (sd *SortDirection) UnmarshalJSON(b []byte) error {
@@ -50,9 +52,9 @@ func (sd *SortDirection) UnmarshalJSON(b []byte) error {
 
 	switch temp {
 	case "asc":
-		*sd = DirectionAscending
+		*sd = SortAscending
 	case "desc":
-		*sd = DirectionDescending
+		*sd = SortDescending
 	default:
 		return ErrSortDirectionInvalid
 	}

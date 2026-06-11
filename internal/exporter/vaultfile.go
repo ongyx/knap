@@ -1,12 +1,13 @@
 package exporter
 
 import (
-	"fmt"
+	"io"
+	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/ongyx/knap/internal/schema"
 	"github.com/ongyx/knap/internal/util"
 )
 
@@ -20,10 +21,15 @@ type VaultFile struct {
 	RelPath string
 	// The file format.
 	FileFormat util.FileFormat
+	// The size of the file.
+	Size int64
+	// The content type.
+	ContentType string
+
 	// The UUID generated for this file.
 	ID uuid.UUID
 	// The URLID generated for this file.
-	URLID schema.URLID
+	URLID util.URLID
 }
 
 // Creates a new vault file entry for the given file path and vault path.
@@ -38,14 +44,34 @@ func NewVaultFile(path, vaultPath string) (*VaultFile, error) {
 		return nil, err
 	}
 
-	urlid := schema.NewURLID()
+	urlid := util.NewURLID()
+
+	// Probe the file for its size and MIME content type.
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	st, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+
+	var buf [512]byte
+	if _, err := f.Read(buf[:]); err != nil && err != io.EOF {
+		return nil, err
+	}
+	ct := http.DetectContentType(buf[:])
 
 	return &VaultFile{
-		AbsPath:    path,
-		RelPath:    filepath.ToSlash(rel),
-		FileFormat: util.ParseFileFormat(path),
-		ID:         id,
-		URLID:      urlid,
+		AbsPath:     path,
+		RelPath:     filepath.ToSlash(rel),
+		FileFormat:  util.ParseFileFormat(path),
+		Size:        st.Size(),
+		ContentType: ct,
+		ID:          id,
+		URLID:       urlid,
 	}, nil
 }
 
@@ -54,20 +80,4 @@ func (vf *VaultFile) Title() string {
 	base := filepath.Base(vf.AbsPath)
 	ext := filepath.Ext(base)
 	return strings.TrimSuffix(base, ext)
-}
-
-// Generates the Outline document URL for this vault file.
-//
-// For more details, please refer to: https://github.com/outline/outline/blob/88de417a21c260e32ecc9c89d756661c54064603/server/models/Document.ts#L430
-func (vf *VaultFile) DocumentURL() string {
-	title := vf.Title()
-	slug := util.Slugify(title, nil)
-
-	urlid := string(vf.URLID)
-
-	if len(slug) > 0 {
-		return fmt.Sprintf(`/doc/%s-%s`, slug, urlid)
-	} else {
-		return fmt.Sprintf(`/doc/untitled-%s`, urlid)
-	}
 }

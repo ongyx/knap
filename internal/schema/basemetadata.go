@@ -5,14 +5,15 @@ import (
 
 	"github.com/djherbis/times"
 	"github.com/google/uuid"
+	"github.com/ongyx/knap/internal/util"
 )
 
-// Metadata represents common metadata for Document and Collection.
-type Metadata struct {
+// BaseMetadata represents common metadata for Document and Collection.
+type BaseMetadata struct {
 	// The UUID of the document/collection.
 	ID uuid.UUID `json:"id"`
 	// The URLID linking to the document/collection.
-	URLID URLID `json:"urlId"`
+	URLID util.URLID `json:"urlId"`
 	// The name of the icon to show for the document/collection, if any.
 	Icon *string `json:"icon"`
 	// The hexadecimal color of the icon for the document/collection, if any.
@@ -25,12 +26,11 @@ type Metadata struct {
 	DeletedAt *time.Time `json:"deletedAt,omitempty"`
 }
 
-// Creates basic metadata with the given ID.
-func NewMetadata(id uuid.UUID) *Metadata {
-	urlid := NewURLID()
+// Creates basic metadata with the given ID and URLID.
+func NewCommonMetadata(id uuid.UUID, urlid util.URLID) *BaseMetadata {
 	now := time.Now()
 
-	return &Metadata{
+	return &BaseMetadata{
 		ID:        id,
 		URLID:     urlid,
 		CreatedAt: now,
@@ -39,7 +39,7 @@ func NewMetadata(id uuid.UUID) *Metadata {
 }
 
 // Sets the timestamps for the *At fields from a file.
-func (m *Metadata) SetTimestamps(filename string) error {
+func (m *BaseMetadata) SetTimestamps(filename string) error {
 	t, err := times.Stat(filename)
 	if err != nil {
 		return err

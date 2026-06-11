@@ -1,6 +1,8 @@
 package collections
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestSet(t *testing.T) {
 	s := NewSet(1, 2, 3)
@@ -26,5 +28,10 @@ func TestSet(t *testing.T) {
 	s.Remove(1)
 	if s.Contains(1) {
 		t.Errorf("expected set to not contain 1 after Remove")
+	}
+
+	s.Update(NewSet(1, 2, 3))
+	if s.Len() != 4 {
+		t.Errorf("expected set to have four items")
 	}
 }

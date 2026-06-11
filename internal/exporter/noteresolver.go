@@ -1,12 +1,12 @@
 package exporter
 
 import (
+	"fmt"
 	"html"
-	"net/http"
-	"os"
 	"path/filepath"
 	"regexp"
 
+	"github.com/ongyx/knap/internal/collections"
 	"github.com/ongyx/knap/internal/converter"
 	"github.com/ongyx/knap/internal/obsidian"
 	"github.com/ongyx/knap/internal/schema"
@@ -23,8 +23,23 @@ var slugifyHeadingOptions = &util.SlugifyOptions{
 
 // Resolver for a note being exported.
 type NoteResolver struct {
-	exporter Exporter
-	note     *VaultFile
+	exporter    *Exporter
+	note        *VaultFile
+	attachments *collections.Set[*VaultFile]
+}
+
+// Creates a new note resolver with the given exporter and the note vault file.
+func NewNoteResolver(exporter *Exporter, note *VaultFile) *NoteResolver {
+	return &NoteResolver{
+		exporter:    exporter,
+		note:        note,
+		attachments: collections.NewSet[*VaultFile](),
+	}
+}
+
+// Returns the attachments linked to by the note. This should only be called after the note has been fully converted.
+func (nr *NoteResolver) Attachments() *collections.Set[*VaultFile] {
+	return nr.attachments
 }
 
 // Implements internal/converter.ResolveInternalLink.
@@ -51,8 +66,13 @@ func (nr *NoteResolver) ResolveInternalLink(link *converter.Link) (node *schema.
 	} else if vf.FileFormat == util.FileVideo && link.Embed {
 		node, err = nr.handleVideoFile(vf, link)
 	} else {
-		// Any other file is exported as an attachment without special presentation.
+		// Any other file is exported as an attachment node without special presentation.
 		node, err = nr.handleAttachment(vf, link)
+	}
+
+	if err == nil {
+		// Add the attachment to the set.
+		nr.attachments.Add(vf)
 	}
 
 	return node, err
@@ -89,49 +109,27 @@ func (nr *NoteResolver) ResolveColor(doc *ast.Document, tc *obsidian.TextColor) 
 }
 
 func (nr *NoteResolver) handleAttachment(vf *VaultFile, link *converter.Link) (*schema.Node, error) {
-	// Probe the file for its size and MIME content type.
-	f, err := os.Open(vf.AbsPath)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	var title string
-	if link.Text != nil {
-		title = string(link.Text)
-	} else {
+	title := link.Text
+	if title == "" {
 		title = filepath.Base(vf.AbsPath)
 	}
 
-	// DetectContentType only takes the first 512 bytes.
-	var buf [512]byte
-	if _, err := f.Read(buf[:]); err != nil {
-		return nil, err
-	}
-	contentType := http.DetectContentType(buf[:])
-
-	fi, err := f.Stat()
-	if err != nil {
-		return nil, err
-	}
-
 	// Generate an attachment node.
-	return schema.NewAttachmentNode(vf.ID, title, contentType, fi.Size()), nil
+	return schema.NewAttachmentNode(vf.ID, title, vf.ContentType, vf.Size), nil
 }
 
 func (nr *NoteResolver) handleNoteFile(vf *VaultFile, link *converter.Link) (*schema.Node, error) {
 	// References to other notes are converted into links to the document URL.
-	href := vf.DocumentURL()
+	href := vf.URLID.GenerateDocumentURL(vf.Title())
+	fmt.Printf("resolving reference to %#v -> %q\n", vf, href)
 
 	if link.URL.Fragment != "" {
 		// Add the heading to the URL as a fragment.
 		href += slugifyHeading(link.URL.Fragment)
 	}
 
-	var title string
-	if link.Text != nil {
-		title = string(link.Text)
-	} else {
+	title := link.Text
+	if title == "" {
 		title = vf.Title()
 	}
 
@@ -141,7 +139,7 @@ func (nr *NoteResolver) handleNoteFile(vf *VaultFile, link *converter.Link) (*sc
 }
 
 func (nr *NoteResolver) handleImageFile(vf *VaultFile, link *converter.Link) (*schema.Node, error) {
-	w, h := converter.ParseEmbedSize(link.Text)
+	w, h, _ := converter.ParseEmbedSize(link.Text)
 	return schema.NewImageFileNode(vf.ID, w, h), nil
 }
 

@@ -4,15 +4,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/ongyx/knap/internal/util"
 )
 
 // Document represents an individual Outline document, including its content and metadata.
 type Document struct {
-	*Metadata
+	*BaseMetadata
 
-	// The document's display name.
+	// The display name.
 	Title string `json:"title"`
-	// The document's root node.
+	// The document schema node.
 	Data *Node `json:"data"`
 	// The UUID of the person who created the document.
 	CreatedById uuid.UUID `json:"createdById"`
@@ -30,29 +31,29 @@ type Document struct {
 	ParentDocumentId *uuid.UUID `json:"parentDocumentId"`
 }
 
-// Creates an empty document with the given ID.
-func NewDocument(id uuid.UUID) *Document {
-	m := NewMetadata(id)
+// Creates an empty document with the given ID, title, and identity. [Document.Data] is set to an empty document node.
+func NewDocument(id uuid.UUID, urlid util.URLID, title string, idn Identity) *Document {
+	m := NewCommonMetadata(id, urlid)
+	d := NewDocumentNode()
+	d.Content = append(d.Content, NewParagraphNode())
 
 	return &Document{
-		Metadata:    m,
-		PublishedAt: &m.CreatedAt,
+		BaseMetadata:   m,
+		Title:          title,
+		Data:           d,
+		CreatedById:    idn.ID,
+		CreatedByName:  idn.Name,
+		CreatedByEmail: idn.Email,
+		PublishedAt:    &m.CreatedAt,
 	}
-}
-
-// Sets the identity for the CreatedBy* fields.
-func (d *Document) SetIdentity(i Identity) {
-	d.CreatedById = i.ID
-	d.CreatedByName = i.Name
-	d.CreatedByEmail = i.Email
 }
 
 // Sets the timestamps for the *At fields from a file.
 func (d *Document) SetTimestamps(filename string) error {
-	if err := d.Metadata.SetTimestamps(filename); err != nil {
+	if err := d.BaseMetadata.SetTimestamps(filename); err != nil {
 		return err
 	}
 
-	d.PublishedAt = &d.Metadata.UpdatedAt
+	d.PublishedAt = &d.BaseMetadata.UpdatedAt
 	return nil
 }

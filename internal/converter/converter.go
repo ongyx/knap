@@ -60,7 +60,7 @@ func New(res Resolver) *Converter {
 	}
 }
 
-// Parses the Markdown text in src and converts its AST into a Prosemirror node.
+// Parses the Markdown text in src and converts its AST into a document schema node.
 func (cv *Converter) Convert(src []byte) (*schema.Node, error) {
 	cv.source = src
 	cv.schemaDoc = nil
@@ -247,7 +247,7 @@ func (cv *Converter) astToSchema(anode ast.Node) (snode *schema.Node, marks []sc
 			err   error
 		)
 
-		link, err = NewLinkFromNode(an, cv.source)
+		link, err = ParseLinkFromNode(an, cv.source)
 		if err != nil {
 			return nil, nil, ast.WalkStop, err
 		}
@@ -352,7 +352,7 @@ func resolveExternalLink(link *Link) (node *schema.Node, err error) {
 
 		// If the URL points to an image file, generate an image URL node.
 		if ff == util.FileImage {
-			w, h := ParseEmbedSize(link.Text)
+			w, h, _ := ParseEmbedSize(link.Text)
 			return schema.NewImageURLNode(link.URL.String(), w, h), nil
 		}
 

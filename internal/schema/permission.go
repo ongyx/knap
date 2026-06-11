@@ -48,7 +48,7 @@ func (p Permission) MarshalJSON() ([]byte, error) {
 		return nil, ErrPermissionInvalid
 	}
 
-	return []byte(s), nil
+	return json.Marshal(s)
 }
 
 func (p *Permission) UnmarshalJSON(b []byte) error {

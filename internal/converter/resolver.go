@@ -33,24 +33,15 @@ func (r *defaultResolver) ResolveInternalLink(link *Link) (*schema.Node, error) 
 		buf.WriteByte('!')
 	}
 
-	if link.IsInternal() {
-		buf.WriteString("[[")
-		buf.WriteString(link.URL.String())
+	buf.WriteString("[[")
+	buf.WriteString(link.URL.String())
 
-		if link.Text != nil {
-			buf.WriteByte('|')
-			buf.Write(link.Text)
-		}
-
-		buf.WriteString("]]")
-	} else {
-		buf.WriteByte('[')
-		buf.Write(link.Text)
-		buf.WriteByte(']')
-		buf.WriteByte('(')
-		buf.WriteString(link.URL.String())
-		buf.WriteByte(')')
+	if link.Text != "" {
+		buf.WriteByte('|')
+		buf.WriteString(link.Text)
 	}
+
+	buf.WriteString("]]")
 
 	return schema.NewTextNode(buf.String()), nil
 }

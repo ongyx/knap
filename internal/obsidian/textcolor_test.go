@@ -56,7 +56,7 @@ func TestTextColor(t *testing.T) {
 			source := []byte(tt.source)
 			doc := md.Parser().Parse(text.NewReader(source))
 
-			color := testutil.FindNode[*TextColor](doc)
+			color := testutil.FindChildNode[*TextColor](doc)
 			if color == nil {
 				t.Fatal("TextColor node not found")
 			}
@@ -116,7 +116,7 @@ func TestTextColorInvalid(t *testing.T) {
 			source := []byte(tt.source)
 			doc := md.Parser().Parse(text.NewReader(source))
 
-			color := testutil.FindNode[*TextColor](doc)
+			color := testutil.FindChildNode[*TextColor](doc)
 			if color != nil {
 				t.Errorf("TextColor node should not be found for source: %q", tt.source)
 			}

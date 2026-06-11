@@ -36,7 +36,7 @@ func TestHighlight(t *testing.T) {
 			source := []byte(tt.source)
 			doc := md.Parser().Parse(text.NewReader(source))
 
-			found := testutil.FindNode[*Highlight](doc)
+			found := testutil.FindChildNode[*Highlight](doc)
 			if found == nil {
 				t.Fatal("Highlight node not found in AST")
 			}
@@ -81,7 +81,7 @@ func TestHighlightInvalid(t *testing.T) {
 			source := []byte(tt.source)
 			doc := md.Parser().Parse(text.NewReader(source))
 
-			found := testutil.FindNode[*Highlight](doc)
+			found := testutil.FindChildNode[*Highlight](doc)
 
 			if found != nil {
 				t.Errorf("Callout node should not be found for source: %q", tt.source)

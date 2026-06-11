@@ -1,6 +1,9 @@
 package util
 
-import "testing"
+import (
+	"regexp"
+	"testing"
+)
 
 func TestSlugify(t *testing.T) {
 	tests := []struct {
@@ -38,6 +41,14 @@ func TestSlugify(t *testing.T) {
 			str:      "Hello   World",
 			options:  nil,
 			expected: "Hello-World",
+		},
+		{
+			name: "exclude periods",
+			str:  "hello . world",
+			options: &SlugifyOptions{
+				Remove: regexp.MustCompile(`[^\w\s\-~]`),
+			},
+			expected: "hello-world",
 		},
 	}
 

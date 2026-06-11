@@ -14,27 +14,33 @@ var reEmbedSize = regexp.MustCompile(`^(\d+)(?:x(\d+))?$`)
 
 // Parses an embed size of the format '(w)' or '(w)x(h)', where w and h are integers.
 //
-// If the format is invalid, width and height will be 0.
-func ParseEmbedSize(b []byte) (width, height int) {
-	m := reEmbedSize.FindSubmatchIndex(b)
-
-	if len(m) >= 4 {
-		w := b[m[2]:m[3]]
-		// SAFETY: w must only consist of digits as per reEmbedSize.
-		width = util.Must(strconv.Atoi(string(w)))
+// If the format is invalid, ok is false.
+func ParseEmbedSize(s string) (width, height int, ok bool) {
+	m := reEmbedSize.FindStringSubmatchIndex(s)
+	if m == nil {
+		return 0, 0, false
 	}
 
-	if len(m) == 6 {
-		h := b[m[4]:m[5]]
+	wstart := m[2]
+	wend := m[3]
+	hstart := m[4]
+	hend := m[5]
+
+	w := s[wstart:wend]
+	// SAFETY: w must only consist of digits as per reEmbedSize.
+	width = util.Must(strconv.Atoi(w))
+
+	if hstart > 0 && hend > 0 {
+		h := s[hstart:hend]
 		// SAFETY: h must only consist of digits as per reEmbedSize.
-		height = util.Must(strconv.Atoi(string(h)))
+		height = util.Must(strconv.Atoi(h))
 	}
 
-	return width, height
+	return width, height, true
 }
 
 // Returns the child text nodes of the given node without any Markdown formatting.
-func NodeChildrenToText(node ast.Node, source []byte) []byte {
+func NodeChildrenToText(node ast.Node, source []byte) string {
 	var buf bytes.Buffer
 
 	walker := func(node ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -54,5 +60,5 @@ func NodeChildrenToText(node ast.Node, source []byte) []byte {
 		panic("erorr returned from walking AST when there shouldn't be")
 	}
 
-	return buf.Bytes()
+	return buf.String()
 }

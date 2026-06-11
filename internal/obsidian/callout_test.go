@@ -40,7 +40,7 @@ func TestCallout(t *testing.T) {
 			source := []byte(tt.source)
 			doc := md.Parser().Parse(text.NewReader(source))
 
-			found := testutil.FindNode[*Callout](doc)
+			found := testutil.FindChildNode[*Callout](doc)
 			if found == nil {
 				t.Fatal("Callout node not found in AST")
 			}
@@ -80,7 +80,7 @@ func TestCalloutInvalid(t *testing.T) {
 			source := []byte(tt.source)
 			doc := md.Parser().Parse(text.NewReader(source))
 
-			found := testutil.FindNode[*Callout](doc)
+			found := testutil.FindChildNode[*Callout](doc)
 
 			if found != nil {
 				t.Errorf("Callout node should not be found for source: %q", tt.source)

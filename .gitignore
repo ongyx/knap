@@ -31,5 +31,5 @@ go.work.sum
 # .idea/
 # .vscode/
 
-# Test data
-test
+# Uploaded folders in testdata
+testdata/*/uploads

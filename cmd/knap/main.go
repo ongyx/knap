@@ -1,14 +1,11 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"io"
 	"log"
 	"os"
 
 	"github.com/google/uuid"
-	"github.com/ongyx/knap/internal/converter"
+	"github.com/ongyx/knap/internal/exporter"
 	"github.com/ongyx/knap/internal/schema"
 )
 
@@ -16,42 +13,31 @@ var L = log.New(os.Stderr, "", 0)
 
 func main() {
 	if len(os.Args) < 2 {
-		L.Println("usage: knap <file>")
+		L.Println("usage: knap <path to vault> <path to export ZIP file to>")
 		os.Exit(1)
 	}
 
-	f, err := os.Open(os.Args[1])
+	idn := schema.Identity{
+		ID:    uuid.New(),
+		Name:  "test",
+		Email: "test@test.invalid",
+	}
+
+	vp := os.Args[1]
+	ex, err := exporter.New(idn, vp)
 	if err != nil {
-		L.Printf("error: failed to open file: %s\n", err)
-		os.Exit(1)
-	}
-	defer f.Close()
-
-	id, _ := uuid.NewRandom()
-	d := schema.NewDocument(id)
-	if err := d.SetTimestamps(f.Name()); err != nil {
-		L.Printf("error: failed to set timestamps from file: %s\n", err)
-		os.Exit(1)
+		L.Fatalln(err)
 	}
 
-	src, err := io.ReadAll(f)
+	ep := os.Args[2]
+	f, err := os.Create(ep)
 	if err != nil {
-		L.Printf("error: failed to read from file: %s\n", err)
-		os.Exit(1)
+		L.Fatalln(err)
 	}
 
-	cv := converter.New(nil)
-	d.Data, err = cv.Convert(src)
-	if err != nil {
-		L.Printf("error: failed to convert markdown: %s\n", err)
-		os.Exit(1)
+	if err := ex.Export(f); err != nil {
+		L.Fatalln(err)
 	}
 
-	b, err := json.MarshalIndent(d, "", "    ")
-	if err != nil {
-		L.Printf("error: failed to marshal JSON: %s\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Println(string(b))
+	L.Println("Export done!")
 }

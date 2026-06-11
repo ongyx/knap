@@ -27,7 +27,7 @@ type Link struct {
 	// The URL target.
 	URL *url.URL
 	// The link text. This does not contain any Markdown formatting.
-	Text []byte
+	Text string
 	// Whether or not to embed the note or attachment instead of linking to it.
 	Embed bool
 }
@@ -40,7 +40,7 @@ type Link struct {
 //   - *wikilink.Node
 //
 // ErrUnknownNodeToLink is returned for any other type.
-func NewLinkFromNode(node ast.Node, source []byte) (*Link, error) {
+func ParseLinkFromNode(node ast.Node, source []byte) (*Link, error) {
 	var (
 		u     *url.URL
 		err   error

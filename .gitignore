@@ -33,3 +33,6 @@ go.work.sum
 
 # Uploaded folders in testdata
 testdata/*/uploads
+
+# Test exports
+*.zip

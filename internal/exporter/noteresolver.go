@@ -1,7 +1,6 @@
 package exporter
 
 import (
-	"fmt"
 	"html"
 	"path/filepath"
 	"regexp"
@@ -70,7 +69,7 @@ func (nr *NoteResolver) ResolveInternalLink(link *converter.Link) (node *prosemi
 		node, err = nr.handleAttachment(vf, link)
 	}
 
-	if err == nil {
+	if vf.FileFormat != util.FileNote && err == nil {
 		// Add the attachment to the set.
 		nr.attachments.Add(vf)
 	}
@@ -115,13 +114,12 @@ func (nr *NoteResolver) handleAttachment(vf *VaultFile, link *converter.Link) (*
 	}
 
 	// Generate an attachment node.
-	return prosemirror.NewAttachmentNode(vf.ID, title, vf.ContentType, vf.Size), nil
+	return prosemirror.NewAttachmentNode(vf.ID, title, vf.MimeType.String(), vf.Size), nil
 }
 
 func (nr *NoteResolver) handleNoteFile(vf *VaultFile, link *converter.Link) (*prosemirror.Node, error) {
 	// References to other notes are converted into links to the document URL.
 	href := vf.URLID.GenerateDocumentURL(vf.Title())
-	fmt.Printf("resolving reference to %#v -> %q\n", vf, href)
 
 	if link.URL.Fragment != "" {
 		// Add the heading to the URL as a fragment.

@@ -1,8 +1,6 @@
 package schema
 
 import (
-	"time"
-
 	"github.com/google/uuid"
 	"github.com/ongyx/knap/internal/prosemirror"
 	"github.com/ongyx/knap/internal/util"
@@ -23,7 +21,7 @@ type Document struct {
 	// The email of the person who created the document.
 	CreatedByEmail string `json:"createdByEmail"`
 	// When the document was published.
-	PublishedAt *time.Time `json:"publishedAt"`
+	PublishedAt *Timestamp `json:"publishedAt"`
 	// Whether or not the document should be displayed with full width.
 	FullWidth bool `json:"fullWidth"`
 	// Whether or not this document is a template.

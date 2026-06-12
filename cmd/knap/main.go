@@ -26,17 +26,17 @@ func main() {
 	vp := os.Args[1]
 	ex, err := exporter.New(idn, vp)
 	if err != nil {
-		L.Fatalln(err)
+		L.Fatalf("failed to create exporter: %s", err)
 	}
 
 	ep := os.Args[2]
 	f, err := os.Create(ep)
 	if err != nil {
-		L.Fatalln(err)
+		L.Fatalf("failed to create zipfile: %s", err)
 	}
 
 	if err := ex.Export(f); err != nil {
-		L.Fatalln(err)
+		L.Fatalf("failed to export vault: %s", err)
 	}
 
 	L.Println("Export done!")

@@ -23,8 +23,10 @@ var permissionToString = map[Permission]string{
 var stringToPermission = make(map[string]Permission, len(permissionToString))
 
 // interface asserts
-var _ json.Marshaler = (*Permission)(nil)
-var _ json.Unmarshaler = (*Permission)(nil)
+var (
+	_ json.Marshaler   = (*Permission)(nil)
+	_ json.Unmarshaler = (*Permission)(nil)
+)
 
 // Error returned from Permission.MarshalJSON()/UnmarshalJSON() if the value is invalid.
 var ErrPermissionInvalid = errors.New("sort direction is invalid")

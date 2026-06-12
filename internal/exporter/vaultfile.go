@@ -1,12 +1,11 @@
 package exporter
 
 import (
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/gabriel-vasile/mimetype"
 	"github.com/google/uuid"
 	"github.com/ongyx/knap/internal/util"
 )
@@ -23,8 +22,8 @@ type VaultFile struct {
 	FileFormat util.FileFormat
 	// The size of the file.
 	Size int64
-	// The content type.
-	ContentType string
+	// The mimetype.
+	MimeType *mimetype.MIME
 
 	// The UUID generated for this file.
 	ID uuid.UUID
@@ -58,20 +57,19 @@ func NewVaultFile(path, vaultPath string) (*VaultFile, error) {
 		return nil, err
 	}
 
-	var buf [512]byte
-	if _, err := f.Read(buf[:]); err != nil && err != io.EOF {
+	mt, err := mimetype.DetectReader(f)
+	if err != nil {
 		return nil, err
 	}
-	ct := http.DetectContentType(buf[:])
 
 	return &VaultFile{
-		AbsPath:     path,
-		RelPath:     filepath.ToSlash(rel),
-		FileFormat:  util.ParseFileFormat(path),
-		Size:        st.Size(),
-		ContentType: ct,
-		ID:          id,
-		URLID:       urlid,
+		AbsPath:    path,
+		RelPath:    filepath.ToSlash(rel),
+		FileFormat: util.ParseFileFormat(path),
+		Size:       st.Size(),
+		MimeType:   mt,
+		ID:         id,
+		URLID:      urlid,
 	}, nil
 }
 

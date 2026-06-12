@@ -1,8 +1,6 @@
 package schema
 
 import (
-	"time"
-
 	"github.com/google/uuid"
 )
 
@@ -18,7 +16,7 @@ type ExportMetadata struct {
 	// The application version.
 	Version string `json:"version"`
 	// When the export was created.
-	CreatedAt time.Time `json:"createdAt"`
+	CreatedAt Timestamp `json:"createdAt"`
 	// The ID of the user who created the export.
 	CreatedByID uuid.UUID `json:"createdById"`
 	// The email of the user who created the export.
@@ -29,7 +27,7 @@ func NewExportMetadata(idn Identity) *ExportMetadata {
 	return &ExportMetadata{
 		ExportVersion:  1,
 		Version:        outlineVersion,
-		CreatedAt:      time.Now(),
+		CreatedAt:      NewTimestampNow(),
 		CreatedByID:    idn.ID,
 		CreatedByEmail: &idn.Email,
 	}

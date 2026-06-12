@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -29,9 +30,9 @@ type Exporter struct {
 	vault       *Vault
 	ftcSettings *FTCSettings
 
-	collection *schema.Collection
-	documents  map[string]*schema.Document
-	navnodes   map[string]*schema.NavigationNode
+	collection    *schema.Collection
+	documentCache map[string]*schema.Document
+	navnodeCache  map[string]*schema.NavigationNode
 }
 
 // Creates a new exporter with the given identity.
@@ -42,15 +43,15 @@ func New(identity schema.Identity, vaultPath string) (*Exporter, error) {
 	st, err := NewFTCSettings(vaultPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		// The settings file exists but it can't be read for some other reason.
-		return nil, fmt.Errorf("fast text color settings exists in vault but parsing failed: %w", err)
+		return nil, fmt.Errorf("exporter: fast text color settings exists in vault but parsing failed: %w", err)
 	}
 
 	return &Exporter{
-		identity:    identity,
-		vault:       v,
-		ftcSettings: st,
-		documents:   make(map[string]*schema.Document),
-		navnodes:    make(map[string]*schema.NavigationNode),
+		identity:      identity,
+		vault:         v,
+		ftcSettings:   st,
+		documentCache: make(map[string]*schema.Document),
+		navnodeCache:  make(map[string]*schema.NavigationNode),
 	}, nil
 }
 
@@ -79,8 +80,8 @@ func (e *Exporter) Export(w io.Writer) error {
 	cname := filepath.Base(e.vault.Path())
 
 	e.collection = schema.NewCollection(cid, curlid, cname)
-	clear(e.documents)
-	clear(e.navnodes)
+	clear(e.documentCache)
+	clear(e.navnodeCache)
 
 	// Scan the vault for notes and attachements to export.
 	if err := e.vault.Scan(); err != nil {
@@ -92,67 +93,108 @@ func (e *Exporter) Export(w io.Writer) error {
 		if vf.FileFormat != util.FileNote {
 			continue
 		}
-		if err := e.generateNoteDocument(vf); err != nil {
+		if err := e.createDocumentFromNote(vf); err != nil {
 			return fmt.Errorf("failed to generate document for note at %q: %w", vf.AbsPath, err)
 		}
 	}
 
 	zw := zip.NewWriter(w)
 
-	m := schema.NewExportMetadata(e.identity)
-
-	// Write the export metadata.
-	mf, err := zw.Create(metadataFilename)
-	if err != nil {
-		return fmt.Errorf("failed to create metadata file: %w", err)
+	if err := e.writeMetadata(zw); err != nil {
+		return err
 	}
-
-	me := json.NewEncoder(mf)
-	if err := me.Encode(m); err != nil {
-		return fmt.Errorf("failed to marshal JSON into collection file: %w", err)
+	if err := e.writeCollection(zw); err != nil {
+		return err
 	}
-
-	// Write the collection to a JSON file of the same name.
-	cf, err := zw.Create(cname + jsonExtension)
-	if err != nil {
-		return fmt.Errorf("failed to create collection file: %w", err)
-	}
-
-	ce := json.NewEncoder(cf)
-	if err := ce.Encode(e.collection); err != nil {
-		return fmt.Errorf("failed to marshal JSON into collection file: %w", err)
+	if err := e.copyAttachments(zw); err != nil {
+		return err
 	}
 
 	return zw.Close()
 }
 
-// Registers a document for export. If pdoc and pnn are non-nil, they are registered as the parent document and navnode.
+// Writes the export metadata as JSON to the zipfile.
+func (e *Exporter) writeMetadata(zw *zip.Writer) error {
+	m := schema.NewExportMetadata(e.identity)
+
+	// Write the export metadata.
+	mf, err := zw.Create(metadataFilename)
+	if err != nil {
+		return fmt.Errorf("exporter: couldn't create metadata %q in zip: %w", metadataFilename, err)
+	}
+
+	me := json.NewEncoder(mf)
+	if err := me.Encode(m); err != nil {
+		return fmt.Errorf("exporter: couldn't write to metadata %q in zip: %w", metadataFilename, err)
+	}
+
+	return nil
+}
+
+// Writes the exported collection as JSON to the zipfile.
+func (e *Exporter) writeCollection(zw *zip.Writer) error {
+	fname := e.collection.Metadata.Name + jsonExtension
+	// Write the collection to a JSON file of the same name.
+	cf, err := zw.Create(fname)
+	if err != nil {
+		return fmt.Errorf("exporter: couldn't create collection %q in zip: %w", fname, err)
+	}
+
+	ce := json.NewEncoder(cf)
+	if err := ce.Encode(e.collection); err != nil {
+		return fmt.Errorf("exporter: couldn't write to collection %q in zip: %w", fname, err)
+	}
+
+	return nil
+}
+
+func (e *Exporter) copyAttachments(zw *zip.Writer) error {
+	for _, att := range e.collection.Attachments {
+		f, err := os.Open(att.AbsPath)
+		if err != nil {
+			return fmt.Errorf("exporter: couldn't copy attachment %q to zip: %w", att.AbsPath, err)
+		}
+
+		// Copy the attachment's contents to the zip file.
+		af, err := zw.Create(att.Key)
+		if err != nil {
+			return fmt.Errorf("exporter: couldn't create attachment %q in zip: %w", att.Key, err)
+		}
+
+		if _, err := io.Copy(af, f); err != nil {
+			return fmt.Errorf("exporter: couldn't write to attachment %q in zip: %w", att.Key, err)
+		}
+	}
+
+	return nil
+}
+
+// Registers a document for export, where key is a relative path within the vault for caching the document.
+// If pdoc and pnn are non-nil, they are registered as the parent document and navnode.
 func (e *Exporter) registerDocument(
-	relpath string,
+	key string,
 	doc *schema.Document,
 	nn *schema.NavigationNode,
 	pdoc *schema.Document,
 	pnn *schema.NavigationNode,
 ) {
-	meta := e.collection.Metadata
-	docs := e.collection.Documents
-
 	if pdoc != nil && pnn != nil {
 		// Indicate the document to be a child of the parent document, and add its navigation node as a child of the parent's.
 		doc.ParentDocumentId = &pdoc.ID
 		pnn.Children = append(pnn.Children, nn)
 	} else {
+		meta := e.collection.Metadata
 		// Add the document's navigation node to the root of the collection.
 		meta.DocumentStructure = append(meta.DocumentStructure, nn)
 	}
 
-	e.documents[relpath] = doc
-	e.navnodes[relpath] = nn
+	e.documentCache[key] = doc
+	e.navnodeCache[key] = nn
 
-	docs[doc.ID] = doc
+	e.collection.Documents[doc.ID] = doc
 }
 
-// Registers attachments belonging to a document for export.
+// Registers one or more files in a vault for export as an attachment belonging to a specific document.
 func (e *Exporter) registerAttachments(files iter.Seq[*VaultFile], doc *schema.Document) {
 	for vf := range files {
 		if _, ok := e.collection.Attachments[vf.ID]; ok {
@@ -160,26 +202,19 @@ func (e *Exporter) registerAttachments(files iter.Seq[*VaultFile], doc *schema.D
 			continue
 		}
 
-		a := &schema.Attachment{
-			UserID:      doc.CreatedById,
-			DocumentID:  doc.ID,
-			ContentType: vf.ContentType,
-			Name:        filepath.Base(vf.AbsPath),
-			ID:          vf.ID,
-			Size:        vf.Size,
-		}
-		a.UpdateKey()
+		a := schema.NewAttachment(doc.CreatedById, doc.ID, vf.MimeType.String(), vf.AbsPath, vf.ID, vf.Size)
+		e.collection.Attachments[a.ID] = a
 	}
 }
 
-// Generates a document from an Obsidian note.
-func (e *Exporter) generateNoteDocument(note *VaultFile) error {
-	if _, ok := e.documents[note.RelPath]; ok {
-		// Document has already been exported?
+// Creates a document by parsing an Obsidian note.
+func (e *Exporter) createDocumentFromNote(note *VaultFile) error {
+	if _, ok := e.documentCache[note.RelPath]; ok {
+		// Document has already been exported? The vault is only iterated over once so this shouldn't be the case.
 		return nil
 	}
 
-	pdoc, pnn, err := e.generateParentDocument(note)
+	pdoc, pnn, err := e.createParentDocuments(note)
 	if err != nil {
 		return err
 	}
@@ -211,48 +246,63 @@ func (e *Exporter) generateNoteDocument(note *VaultFile) error {
 	return nil
 }
 
-// Generates a parent document for each parent directory the note is in, and returns the document and navnode of the immediate parent.
-// If the note does not have a parent directory, the document and navnode will be nil.
-func (e *Exporter) generateParentDocument(note *VaultFile) (*schema.Document, *schema.NavigationNode, error) {
+// Creates a document for each parent directory the note is in, then returns the document of the immediate parent directory.
+// If the note does not have a parent directory, nil is returned.
+func (e *Exporter) createParentDocuments(note *VaultFile) (*schema.Document, *schema.NavigationNode, error) {
 	dir, _ := path.Split(note.RelPath)
 	if dir == "" {
 		// The note does not have any parent directory.
 		return nil, nil, nil
 	}
+	// Strip trailing slash from dir so it can be used as a document key.
+	dir = dir[:len(dir)-1]
 
-	parents := strings.Split(path.Clean(dir), "/")
+	parents := strings.Split(dir, "/")
 
+	// The last document and navigation node generated.
 	var (
-		pdoc *schema.Document
-		pnn  *schema.NavigationNode
+		lkey string
+		ldoc *schema.Document
+		lnn  *schema.NavigationNode
 	)
 
-	// Create a parent document for each parent directory in the path.
-	for i := range parents {
-		relpath := path.Join(parents[:i+1]...)
+	// OPT: iterate backwards from the parent directory of the note to avoid traversing the whole path.
+	for i := range slices.Backward(parents) {
+		key := path.Join(parents[:i+1]...)
 
-		doc, ok := e.documents[relpath]
-		nn := e.navnodes[relpath]
+		doc, ok := e.documentCache[key]
+		nn := e.navnodeCache[key]
+
 		if ok {
-			pdoc = doc
-			pnn = nn
-		} else {
-			doc, nn, err := e.generateEmptyDocument(relpath)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			e.registerDocument(relpath, doc, nn, pdoc, pnn)
-			pdoc = doc
-			pnn = nn
+			// The parent directory has an existing document; therefore its ancestors have one too.
+			break
 		}
+
+		doc, nn, err := e.createEmptyDocument(key)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if ldoc != nil && lnn != nil {
+			// Register the last document as a child of this one.
+			e.registerDocument(lkey, ldoc, lnn, doc, nn)
+		}
+
+		lkey = key
+		ldoc = doc
+		lnn = nn
 	}
 
-	return pdoc, pnn, nil
+	if ldoc != nil && lnn != nil {
+		// Register the top-most document at the root of the collection.
+		e.registerDocument(lkey, ldoc, lnn, nil, nil)
+	}
+
+	return e.documentCache[dir], e.navnodeCache[dir], nil
 }
 
-// Generates an empty document for the relative path.
-func (e *Exporter) generateEmptyDocument(relpath string) (*schema.Document, *schema.NavigationNode, error) {
+// Creates an empty document for the relative path.
+func (e *Exporter) createEmptyDocument(relpath string) (*schema.Document, *schema.NavigationNode, error) {
 	id, err := uuid.NewRandom()
 	if err != nil {
 		return nil, nil, err

@@ -1,8 +1,6 @@
 package schema
 
 import (
-	"time"
-
 	"github.com/djherbis/times"
 	"github.com/google/uuid"
 	"github.com/ongyx/knap/internal/util"
@@ -19,16 +17,16 @@ type BaseMetadata struct {
 	// The hexadecimal color of the icon for the document/collection, if any.
 	Color *string `json:"color"`
 	// When the document/collection was created.
-	CreatedAt time.Time `json:"createdAt"`
+	CreatedAt Timestamp `json:"createdAt"`
 	// When the document/collection was last updated.
-	UpdatedAt time.Time `json:"updatedAt"`
+	UpdatedAt Timestamp `json:"updatedAt"`
 	// When the document/collection was deleted, if it is deleted.
-	DeletedAt *time.Time `json:"deletedAt,omitempty"`
+	DeletedAt *Timestamp `json:"deletedAt,omitempty"`
 }
 
 // Creates basic metadata with the given ID and URLID.
 func NewCommonMetadata(id uuid.UUID, urlid util.URLID) *BaseMetadata {
-	now := time.Now()
+	now := NewTimestampNow()
 
 	return &BaseMetadata{
 		ID:        id,
@@ -45,10 +43,10 @@ func (m *BaseMetadata) SetTimestamps(filename string) error {
 		return err
 	}
 
-	mtime := t.ModTime()
+	mtime := NewTimestamp(t.ModTime())
 	// Getting creation time is surprisingly hard...
 	if t.HasBirthTime() {
-		m.CreatedAt = t.BirthTime()
+		m.CreatedAt = NewTimestamp(t.BirthTime())
 	} else {
 		m.CreatedAt = mtime
 	}

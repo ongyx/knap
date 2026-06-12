@@ -1,8 +1,6 @@
 package schema
 
 import (
-	"time"
-
 	"github.com/google/uuid"
 	"github.com/ongyx/knap/internal/prosemirror"
 	"github.com/ongyx/knap/internal/util"
@@ -21,7 +19,7 @@ type CollectionMetadata struct {
 	// The sort index.
 	Index string `json:"index"`
 	// The access permissions.
-	Permission Permission `json:"permission"`
+	Permission *Permission `json:"permission"`
 	// Whether or not comments are enabled on this collection.
 	Commenting any `json:"commenting"`
 	// Whether or not sharing is enabled on this collection.
@@ -29,7 +27,7 @@ type CollectionMetadata struct {
 	// The permission level required for managing templates in this collection.
 	TemplateManagement Permission `json:"templateManagement"`
 	// When the collection was archived, if it was archived.
-	ArchivedAt *time.Time `json:"archivedAt"`
+	ArchivedAt *Timestamp `json:"archivedAt"`
 	// The hierarchy of documents in the collection.
 	DocumentStructure []*NavigationNode `json:"documentStructure"`
 }

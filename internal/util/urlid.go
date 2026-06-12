@@ -19,6 +19,8 @@ var documentURLSlugifyOptions = &SlugifyOptions{
 type URLID string
 
 // Generates a new URLID.
+//
+// Source: https://github.com/outline/outline/blob/5ea63aa1a28a0a55cd2c8311caa53705e63d1d4e/shared/random.ts#L35
 func NewURLID() URLID {
 	var out [urlIDLength]byte
 	rand.Read(out[:])

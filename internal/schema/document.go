@@ -12,7 +12,7 @@ type Document struct {
 
 	// The display name.
 	Title string `json:"title"`
-	// The document schema node.
+	// The Prosemirror node containing the document content.
 	Data *prosemirror.Node `json:"data"`
 	// The UUID of the person who created the document.
 	CreatedById uuid.UUID `json:"createdById"`

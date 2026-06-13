@@ -57,7 +57,7 @@ func NodeChildrenToText(node ast.Node, source []byte) string {
 
 	// The error here is guaranteed to be nil if the walker doesn't return any error.
 	if err := ast.Walk(node, walker); err != nil {
-		panic("erorr returned from walking AST when there shouldn't be")
+		panic("error returned from walking AST when there shouldn't be")
 	}
 
 	return buf.String()

@@ -12,7 +12,7 @@ type CollectionMetadata struct {
 
 	// The name of the collection.
 	Name string `json:"name"`
-	// The document schema node representing the welcome page.
+	// The Prosemirror node containing the front page content.
 	Data *prosemirror.Node `json:"data"`
 	// The sorting criteria.
 	Sort Sort `json:"sort"`
@@ -35,8 +35,7 @@ type CollectionMetadata struct {
 // Creates an empty collection with the given ID, URLID, and name.
 func NewCollectionMetadata(id uuid.UUID, urlid util.URLID, name string) *CollectionMetadata {
 	m := NewCommonMetadata(id, urlid)
-	d := prosemirror.NewDocumentNode()
-	d.Content = append(d.Content, prosemirror.NewParagraphNode())
+	d := prosemirror.NewBlankDocumentNode()
 
 	return &CollectionMetadata{
 		BaseMetadata:       m,

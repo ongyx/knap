@@ -33,7 +33,7 @@ var ErrInvalidHTML = errors.New("raw HTML is not recognized, only <br> is suppor
 // Represents a context context for walking the AST.
 type context struct {
 	// The Prosemirror node, if any.
-	snode *prosemirror.Node
+	mnode *prosemirror.Node
 	// The formatting to apply to descendant text nodes.
 	marks []prosemirror.Mark
 }
@@ -64,7 +64,7 @@ func New(res Resolver) *Converter {
 	}
 }
 
-// Parses the Markdown text in src and converts its AST into a document schema node.
+// Parses the Markdown text in src and converts its AST into a document Prosemirror node.
 func (cv *Converter) Convert(src []byte) (*prosemirror.Node, error) {
 	cv.source = src
 	cv.prosemirrorDoc = nil
@@ -79,8 +79,8 @@ func (cv *Converter) Convert(src []byte) (*prosemirror.Node, error) {
 	}
 
 	if len(cv.prosemirrorDoc.Content) == 0 {
-		// Empty Markdown files will result in an invalidd ocument without content.
-		// This is invalid. so we need to create a blank document here.
+		// Empty Markdown files will result in an invalid document without content,
+		// so a blank document with an empty paragraph must be created instead.
 		cv.prosemirrorDoc = prosemirror.NewBlankDocumentNode()
 	}
 
@@ -94,43 +94,45 @@ func (cv *Converter) walk(anode ast.Node, entering bool) (ast.WalkStatus, error)
 		return ast.WalkContinue, nil
 	}
 
-	snode, marks, walkStatus, err := cv.astToSchema(anode)
+	mnode, marks, walkStatus, err := cv.astToProsemirror(anode)
 	if err != nil {
 		return walkStatus, err
 	}
 
-	ctx := context{snode, nil}
+	ctx := context{mnode, nil}
 
-	if parent, ok := cv.contexts.Peek(); ok {
-		if snode != nil {
+	if pctx, ok := cv.contexts.Peek(); ok {
+		if mnode != nil {
 			var p *prosemirror.Node
 			// The table extension does not generate a Paragraph/TextBlock AST node for nodes underneath a TableCell AST node,
 			// so we must wrap it in a Prosemirror paragraph to avoid the table getting erased in Outline.
-			if parent.snode.Type == prosemirror.NodeTableHeader || parent.snode.Type == prosemirror.NodeTableCell {
-				if len(parent.snode.Content) == 0 {
+			if pctx.mnode.Type == prosemirror.NodeTableHeader || pctx.mnode.Type == prosemirror.NodeTableCell {
+				if len(pctx.mnode.Content) == 0 {
 					p = prosemirror.NewParagraphNode()
-					parent.snode.Content = []*prosemirror.Node{p}
+					pctx.mnode.Content = []*prosemirror.Node{p}
 				} else {
-					p = parent.snode.Content[0]
+					p = pctx.mnode.Content[0]
 				}
 			} else {
-				p = parent.snode
+				p = pctx.mnode
 			}
 
 			// Append the node to its parent's content.
-			p.Content = append(p.Content, snode)
+			p.Content = append(p.Content, mnode)
 		} else {
 			// No node was converted for this walk, use the parent node for the new context.
-			ctx.snode = parent.snode
+			ctx.mnode = pctx.mnode
 		}
 
-		ctx.marks = slices.Concat(parent.marks, marks)
+		// Preserve the marks from the parent context and add the newly generated ones, if any.
+		// This will be copied into descendant text nodes.
+		ctx.marks = slices.Concat(pctx.marks, marks)
 	} else {
-		// The first schema node is always the document root.
-		cv.prosemirrorDoc = snode
+		// The first Prosemirror node is always the document root.
+		cv.prosemirrorDoc = mnode
 	}
 
-	if ctx.snode == nil {
+	if ctx.mnode == nil {
 		panic("walk: parent node is missing, no more context left")
 	}
 
@@ -139,23 +141,23 @@ func (cv *Converter) walk(anode ast.Node, entering bool) (ast.WalkStatus, error)
 	return walkStatus, nil
 }
 
-// Converts an AST node to a schema node.
-// If snode is not nil, it will be added to the parent node's content.
+// Converts an AST node to a Prosemirror node.
+// If mnode is not nil, it will be added to the parent node's content.
 // If marks is not nil, it will be appended to the context's marks for descendant nodes.
-func (cv *Converter) astToSchema(anode ast.Node) (snode *prosemirror.Node, marks []prosemirror.Mark, walkStatus ast.WalkStatus, err error) {
-	parent, _ := cv.contexts.Peek()
+func (cv *Converter) astToProsemirror(anode ast.Node) (mnode *prosemirror.Node, marks []prosemirror.Mark, walkStatus ast.WalkStatus, err error) {
+	pctx, _ := cv.contexts.Peek()
 
 	switch an := anode.(type) {
 	case *ast.Document:
-		snode := prosemirror.NewDocumentNode()
-		return snode, nil, ast.WalkContinue, nil
+		mnode := prosemirror.NewDocumentNode()
+		return mnode, nil, ast.WalkContinue, nil
 
 	// Inline elements
 
 	case *ast.String:
 		// Strings must be emitted without any marks.
-		snode := prosemirror.NewTextNode(string(an.Value))
-		return snode, nil, ast.WalkContinue, nil
+		mnode := prosemirror.NewTextNode(string(an.Value))
+		return mnode, nil, ast.WalkContinue, nil
 
 	case *ast.Text:
 		v := string(an.Value(cv.source))
@@ -163,15 +165,15 @@ func (cv *Converter) astToSchema(anode ast.Node) (snode *prosemirror.Node, marks
 			// Don't generate a new text node. Empty text nodes may generate between AST wikilinks, but Prosemirror will not recognize the resulting text node as valid.
 			return nil, nil, ast.WalkContinue, nil
 		}
-		snode := prosemirror.NewTextNode(v)
-		snode.Marks = parent.marks
-		return snode, nil, ast.WalkContinue, nil
+		mnode := prosemirror.NewTextNode(v)
+		mnode.Marks = pctx.marks
+		return mnode, nil, ast.WalkContinue, nil
 
 	case *ast.RawHTML:
 		v := string(an.Segments.Value(cv.source))
 		if v == "<br>" {
-			snode := prosemirror.NewLineBreakNode()
-			return snode, nil, ast.WalkContinue, nil
+			mnode := prosemirror.NewLineBreakNode()
+			return mnode, nil, ast.WalkContinue, nil
 		} else {
 			return nil, nil, ast.WalkStop, fmt.Errorf("%w (text: %q)", ErrInvalidHTML, v)
 		}
@@ -182,84 +184,87 @@ func (cv *Converter) astToSchema(anode ast.Node) (snode *prosemirror.Node, marks
 		markup := cv.source[pos : pos+3]
 		isPageBreak := bytes.Equal(markup, []byte("***"))
 
-		snode := prosemirror.NewThematicBreakNode(isPageBreak)
-		return snode, nil, ast.WalkContinue, nil
+		mnode := prosemirror.NewThematicBreakNode(isPageBreak)
+		return mnode, nil, ast.WalkContinue, nil
 
 	case *ast.Heading:
-		snode := prosemirror.NewHeadingNode(an.Level)
-		return snode, nil, ast.WalkContinue, nil
+		mnode := prosemirror.NewHeadingNode(an.Level)
+		return mnode, nil, ast.WalkContinue, nil
 
 	// Block elements
 
 	case *ast.Paragraph, *ast.TextBlock:
-		snode := prosemirror.NewParagraphNode()
-		return snode, nil, ast.WalkContinue, nil
+		mnode := prosemirror.NewParagraphNode()
+		return mnode, nil, ast.WalkContinue, nil
 
 	case *ast.Blockquote:
-		var snode *prosemirror.Node
+		var mnode *prosemirror.Node
 		if nt, ok := cv.extractNotice(an); ok {
-			snode = prosemirror.NewNoticeNode(nt)
+			mnode = prosemirror.NewNoticeNode(nt)
 		} else {
-			snode = prosemirror.NewBlockQuoteNode()
+			mnode = prosemirror.NewBlockQuoteNode()
 		}
-		return snode, nil, ast.WalkContinue, nil
+		return mnode, nil, ast.WalkContinue, nil
 
 	case *ast.CodeBlock:
-		snode := prosemirror.NewFencedCodeBlockNode("none")
-		cv.addLinesContent(snode, anode)
+		mnode := prosemirror.NewFencedCodeBlockNode("none")
+		cv.addLinesAsTextContent(mnode, anode)
 
-		return snode, nil, ast.WalkContinue, nil
+		return mnode, nil, ast.WalkContinue, nil
 
 	case *ast.FencedCodeBlock:
 		lang := string(an.Info.Value(cv.source))
-		snode := prosemirror.NewFencedCodeBlockNode(lang)
+		mnode := prosemirror.NewFencedCodeBlockNode(lang)
 		// goldmark does not parse the text inside the code block, so we have to add it to the node here.
-		cv.addLinesContent(snode, anode)
+		cv.addLinesAsTextContent(mnode, anode)
 
-		return snode, nil, ast.WalkContinue, nil
+		return mnode, nil, ast.WalkContinue, nil
 
 	case *ast.List:
-		var snode *prosemirror.Node
+		var mnode *prosemirror.Node
 		if an.IsOrdered() {
-			snode = prosemirror.NewOrderedListNode(an.Start)
+			mnode = prosemirror.NewOrderedListNode(an.Start)
 		} else if isChecklist(an) {
-			snode = prosemirror.NewChecklistNode()
+			mnode = prosemirror.NewChecklistNode()
 		} else {
-			snode = prosemirror.NewBulletListNode()
+			mnode = prosemirror.NewBulletListNode()
 		}
-		return snode, nil, ast.WalkContinue, nil
+		return mnode, nil, ast.WalkContinue, nil
 
 	case *ast.ListItem:
-		var snode *prosemirror.Node
+		var mnode *prosemirror.Node
 		if isChecked, ok := extractCheckbox(an); ok {
-			snode = prosemirror.NewChecklistItemNode(isChecked)
+			mnode = prosemirror.NewChecklistItemNode(isChecked)
 		} else {
-			snode = prosemirror.NewListItemNode()
+			mnode = prosemirror.NewListItemNode()
 		}
 
-		return snode, nil, ast.WalkContinue, nil
+		return mnode, nil, ast.WalkContinue, nil
 
 	case *east.Table:
-		snode := prosemirror.NewTableNode()
-		return snode, nil, ast.WalkContinue, nil
+		mnode := prosemirror.NewTableNode()
+		return mnode, nil, ast.WalkContinue, nil
 
 	case *east.TableHeader, *east.TableRow:
-		snode := prosemirror.NewTableRowNode()
-		return snode, nil, ast.WalkContinue, nil
+		mnode := prosemirror.NewTableRowNode()
+		return mnode, nil, ast.WalkContinue, nil
 
 	case *east.TableCell:
-		_, isHeader := an.Parent().(*east.TableHeader)
+		p := an.Parent()
+		_, ih := p.(*east.TableHeader)
 
-		// Every table cell row must have a column width.
-		// Otherwise, tables will mysteriously disappear from documents when opened in the editor.
-		colwidth := defaultTableRowWidth / float64(an.Parent().ChildCount())
+		// Every table cell row should have a column width except for the last one.
+		var cw float64
+		if an != p.LastChild() {
+			cw = defaultTableRowWidth / float64(p.ChildCount())
+		}
 
-		snode := prosemirror.NewTableCellNode(isHeader, colwidth)
-		return snode, nil, ast.WalkContinue, nil
+		mnode := prosemirror.NewTableCellNode(ih, cw)
+		return mnode, nil, ast.WalkContinue, nil
 
 	case *ast.HTMLBlock:
-		parent, _ := cv.contexts.Peek()
-		psnode := parent.snode
+		pctx, _ := cv.contexts.Peek()
+		p := pctx.mnode
 
 		// This is kinda annoying to handle, ngl.
 		for i := range an.Lines().Len() {
@@ -267,7 +272,7 @@ func (cv *Converter) astToSchema(anode ast.Node) (snode *prosemirror.Node, marks
 			// Trim the trailing newline.
 			b := bytes.TrimSpace(l.Value(cv.source))
 			if string(b) == "<br>" {
-				psnode.Content = append(psnode.Content, prosemirror.NewLineBreakNode())
+				p.Content = append(p.Content, prosemirror.NewLineBreakNode())
 			} else {
 				return nil, nil, ast.WalkStop, ErrInvalidHTML
 			}
@@ -276,7 +281,7 @@ func (cv *Converter) astToSchema(anode ast.Node) (snode *prosemirror.Node, marks
 	case *ast.Link, *ast.Image, *wikilink.Node:
 		var (
 			link  *Link
-			snode *prosemirror.Node
+			mnode *prosemirror.Node
 			err   error
 		)
 
@@ -287,13 +292,13 @@ func (cv *Converter) astToSchema(anode ast.Node) (snode *prosemirror.Node, marks
 
 		// Internal links must be resolved externally as they may reference other notes or attachments in a vault.
 		if link.IsInternal() {
-			snode, err = cv.resolver.ResolveInternalLink(link)
+			mnode, err = cv.resolver.ResolveInternalLink(link)
 		} else {
-			snode, err = resolveExternalLink(link)
+			mnode, err = resolveExternalLink(link)
 		}
 
 		// Do not handle the child nodes within the link-like nodes.
-		return snode, nil, ast.WalkSkipChildren, err
+		return mnode, nil, ast.WalkSkipChildren, err
 
 	// These elements below are special, because Outline represents them as 'marks' that are then applied to descendant text nodes instead of creating new nodes.
 
@@ -332,11 +337,11 @@ func (cv *Converter) astToSchema(anode ast.Node) (snode *prosemirror.Node, marks
 	return nil, nil, ast.WalkContinue, nil
 }
 
-func (cv *Converter) addLinesContent(snode *prosemirror.Node, anode ast.Node) {
+func (cv *Converter) addLinesAsTextContent(mnode *prosemirror.Node, anode ast.Node) {
 	for i := range anode.Lines().Len() {
 		ls := anode.Lines().At(i)
 		l := string(ls.Value(cv.source))
-		snode.Content = append(snode.Content, prosemirror.NewTextNode(l))
+		mnode.Content = append(mnode.Content, prosemirror.NewTextNode(l))
 	}
 }
 
@@ -379,7 +384,7 @@ func extractCheckbox(li *ast.ListItem) (isChecked bool, ok bool) {
 	return cb.IsChecked, true
 }
 
-func resolveExternalLink(link *Link) (node *prosemirror.Node, err error) {
+func resolveExternalLink(link *Link) (*prosemirror.Node, error) {
 	if link.Embed {
 		ff := util.ParseFileFormat(link.URL.Path)
 

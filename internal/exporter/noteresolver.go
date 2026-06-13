@@ -24,7 +24,7 @@ var slugifyHeadingOptions = &util.SlugifyOptions{
 type NoteResolver struct {
 	exporter    *Exporter
 	note        *VaultFile
-	attachments *collections.Set[*VaultFile]
+	attachments collections.Set[*VaultFile]
 }
 
 // Creates a new note resolver with the given exporter and the note vault file.
@@ -37,7 +37,7 @@ func NewNoteResolver(exporter *Exporter, note *VaultFile) *NoteResolver {
 }
 
 // Returns the attachments linked to by the note. This should only be called after the note has been fully converted.
-func (nr *NoteResolver) Attachments() *collections.Set[*VaultFile] {
+func (nr *NoteResolver) Attachments() collections.Set[*VaultFile] {
 	return nr.attachments
 }
 
@@ -63,7 +63,7 @@ func (nr *NoteResolver) ResolveInternalLink(link *converter.Link) (node *prosemi
 	} else if vf.FileFormat == util.FileImage && link.Embed {
 		node, err = nr.handleImageFile(vf, link)
 	} else if vf.FileFormat == util.FileVideo && link.Embed {
-		node, err = nr.handleVideoFile(vf, link)
+		node, err = nr.handleVideoFile(vf)
 	} else {
 		// Any other file is exported as an attachment node without special presentation.
 		node, err = nr.handleAttachment(vf, link)
@@ -141,7 +141,7 @@ func (nr *NoteResolver) handleImageFile(vf *VaultFile, link *converter.Link) (*p
 	return prosemirror.NewImageFileNode(vf.ID, w, h), nil
 }
 
-func (nr *NoteResolver) handleVideoFile(vf *VaultFile, link *converter.Link) (*prosemirror.Node, error) {
+func (nr *NoteResolver) handleVideoFile(vf *VaultFile) (*prosemirror.Node, error) {
 	// Obsidian does not parse embed sizes for videos, so we do the same here.
 	return prosemirror.NewVideoFileNode(vf.ID, vf.Title()), nil
 }

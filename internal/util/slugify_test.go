@@ -46,7 +46,8 @@ func TestSlugify(t *testing.T) {
 			name: "exclude periods",
 			str:  "hello . world",
 			options: &SlugifyOptions{
-				Remove: regexp.MustCompile(`[^\w\s\-~]`),
+				Replacement: "-",
+				Remove:      regexp.MustCompile(`[^\w\s\-~]`),
 			},
 			expected: "hello-world",
 		},

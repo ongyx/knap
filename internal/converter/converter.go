@@ -3,6 +3,7 @@ package converter
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/ongyx/knap/internal/collections"
@@ -23,8 +24,8 @@ const (
 	EmphasisLevelBold
 )
 
-// Error returned by Converter.Convert when raw HTML fragments are not recognized.
-var ErrInvalidHTML = errors.New("raw HTML is not recognized (only <br> is supported)")
+// Error returned by Converter.Convert when raw HTML fragments are not recognized. This error will be wrapped.
+var ErrInvalidHTML = errors.New("raw HTML is not recognized, only <br> is supported")
 
 // Represents a context context for walking the AST.
 type context struct {
@@ -145,7 +146,7 @@ func (cv *Converter) astToSchema(anode ast.Node) (snode *prosemirror.Node, marks
 			snode := prosemirror.NewLineBreakNode()
 			return snode, nil, ast.WalkContinue, nil
 		} else {
-			return nil, nil, ast.WalkStop, ErrInvalidHTML
+			return nil, nil, ast.WalkStop, fmt.Errorf("%w (text: %q)", ErrInvalidHTML, v)
 		}
 
 	case *ast.ThematicBreak:

@@ -23,7 +23,7 @@ type ExportMetadata struct {
 	CreatedByEmail *string `json:"createdByEmail"`
 }
 
-func NewExportMetadata(idn Identity) *ExportMetadata {
+func NewExportMetadata(idn *Identity) *ExportMetadata {
 	return &ExportMetadata{
 		ExportVersion:  1,
 		Version:        outlineVersion,

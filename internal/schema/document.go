@@ -31,7 +31,7 @@ type Document struct {
 }
 
 // Creates an empty document with the given ID, title, and identity. [Document.Data] is set to an empty document node.
-func NewDocument(id uuid.UUID, urlid util.URLID, title string, idn Identity) *Document {
+func NewDocument(id uuid.UUID, urlid util.URLID, title string, idn *Identity) *Document {
 	m := NewCommonMetadata(id, urlid)
 	d := prosemirror.NewDocumentNode()
 	d.Content = append(d.Content, prosemirror.NewParagraphNode())

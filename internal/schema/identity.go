@@ -11,3 +11,20 @@ type Identity struct {
 	// The email of the user.
 	Email string
 }
+
+// Applies defaults to zero values in the identity.
+func (i *Identity) Defaults() *Identity {
+	if i.ID == uuid.Nil {
+		i.ID = uuid.New()
+	}
+
+	if i.Name == "" {
+		i.Name = "test"
+	}
+
+	if i.Email == "" {
+		i.Email = "test@test.invalid"
+	}
+
+	return i
+}

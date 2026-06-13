@@ -3,6 +3,7 @@ package exporter
 import (
 	"errors"
 	"os"
+	"path"
 	"regexp"
 
 	"github.com/ongyx/knap/internal/util"
@@ -25,4 +26,13 @@ func FolderExists(path string) (bool, error) {
 	}
 
 	return info.IsDir(), nil
+}
+
+// Returns the parent directory of the relative path without a trailing slash.
+func DirWithoutSlash(relpath string) string {
+	dir, _ := path.Split(relpath)
+	if dir != "" {
+		dir = dir[:len(dir)-1]
+	}
+	return dir
 }

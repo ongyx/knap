@@ -9,11 +9,12 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/ongyx/knap/internal/collections"
 	"github.com/ongyx/knap/internal/util"
 )
 
 const (
-	obsidianConfigFolder = ".obsidian"
+	obsidianConfigDir = ".obsidian"
 )
 
 // Error returned by Vault.Scan() when the folder is not an Obsidian vault.
@@ -38,6 +39,7 @@ type Vault struct {
 	path        string
 	allFiles    map[string]*VaultFile
 	uniqueFiles map[string]*VaultFile
+	ignore      collections.Set[string]
 }
 
 // Creates a new vault scanner for the given vault path.
@@ -46,6 +48,7 @@ func NewVault(vaultPath string) *Vault {
 		path:        vaultPath,
 		allFiles:    make(map[string]*VaultFile),
 		uniqueFiles: make(map[string]*VaultFile),
+		ignore:      collections.NewSet[string](),
 	}
 }
 
@@ -55,12 +58,14 @@ func (v *Vault) Path() string {
 }
 
 // Scans the vault for notes and attachments to export.
-func (v *Vault) Scan() error {
+// If a directory is in the ignore set, it will not be scanned.
+func (v *Vault) Scan(ignore collections.Set[string]) error {
 	clear(v.allFiles)
 	clear(v.uniqueFiles)
+	v.ignore = ignore
 
 	// Make sure the path is actually is a vault.
-	cf := path.Join(v.path, obsidianConfigFolder)
+	cf := path.Join(v.path, obsidianConfigDir)
 	exists, err := FolderExists(cf)
 	if err != nil {
 		return err
@@ -112,14 +117,24 @@ func (v *Vault) Files() iter.Seq[*VaultFile] {
 	}
 }
 
+// Returns the number of files in the vault.
+func (v *Vault) Len() int {
+	return len(v.allFiles)
+}
+
 func (v *Vault) walkDir(path string, d fs.DirEntry, err error) error {
 	if err != nil {
 		return err
 	}
 
 	if d.IsDir() {
-		// Don't walk the config folder.
-		if filepath.Base(path) == obsidianConfigFolder {
+		rel, err := filepath.Rel(v.path, path)
+		if err != nil {
+			return err
+		}
+
+		// Don't walk the config dir or ignored paths.
+		if rel == obsidianConfigDir || v.ignore.Contains(rel) {
 			return fs.SkipDir
 		}
 		return nil

@@ -2,6 +2,7 @@ package converter
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/ongyx/knap/internal/prosemirror"
@@ -190,7 +191,7 @@ func TestConverter_Convert_Error(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cv := New(nil)
 			_, err := cv.Convert([]byte(tt.markdown))
-			if err != tt.wantErr {
+			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("Convert() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

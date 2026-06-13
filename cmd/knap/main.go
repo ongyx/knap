@@ -54,7 +54,8 @@ func main() {
 	vaultPath := util.Must(filepath.Abs(args[0]))
 	zipPath := util.Must(filepath.Abs(args[1]))
 
-	fl := os.O_CREATE | os.O_WRONLY
+	// Not having the truncate flag here was a big gotcha...
+	fl := os.O_CREATE | os.O_WRONLY | os.O_TRUNC
 	if !force {
 		fl |= os.O_EXCL
 	}
@@ -79,5 +80,9 @@ func main() {
 
 	if err := exporter.Export(out); err != nil {
 		logger.Fatalf("Error: Failed to export vault: %s\n", err)
+	}
+
+	if err := out.Close(); err != nil {
+		logger.Fatalf("Error: Failed to close zipfile: %s\n", err)
 	}
 }

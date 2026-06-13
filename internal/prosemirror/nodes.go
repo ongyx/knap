@@ -30,6 +30,11 @@ func NewDocumentNode() *Node {
 	return &Node{Type: NodeDocument}
 }
 
+// Creates a blank document node with a single paragraph.
+func NewBlankDocumentNode() *Node {
+	return &Node{Type: NodeDocument, Content: []*Node{NewParagraphNode()}}
+}
+
 // Creates a text node with the given text.
 func NewTextNode(text string) *Node {
 	return &Node{Type: NodeText, Text: text}
@@ -244,7 +249,7 @@ func NewTableRowNode() *Node {
 
 // Creates a table cell node.
 // If header is true, the type is set to NodeTableHeader.
-func NewTableCellNode(isHeader bool) *Node {
+func NewTableCellNode(isHeader bool, colwidth float64) *Node {
 	var ty string
 	if isHeader {
 		ty = NodeTableHeader
@@ -252,13 +257,20 @@ func NewTableCellNode(isHeader bool) *Node {
 		ty = NodeTableCell
 	}
 
+	var cw []float64
+	if colwidth > 0 {
+		cw = []float64{colwidth}
+	}
+
 	return &Node{
 		Type: ty,
 		Attrs: map[string]any{
 			"colspan":   1,
 			"rowspan":   1,
-			"alignment": "",
-			"colwidth":  nil,
+			"alignment": nil,
+			// Colwidth is an array for some reason.
+			// https://github.com/outline/outline/blob/cdd08bbf58ed52141e21c9e2bd05b2047e8aac67/shared/test/editor.ts#L76
+			"colwidth": cw,
 		},
 	}
 }

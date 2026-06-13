@@ -151,5 +151,5 @@ func (nr *NoteResolver) handleVideoFile(vf *VaultFile) (*prosemirror.Node, error
 // See https://github.com/outline/outline/blob/39623b90bd0846ac2316395143a73a3340e2dfd3/shared/editor/lib/headingToSlug.ts#L10.
 func slugifyHeading(str string) string {
 	slug := util.Slugify(str, slugifyHeadingOptions)
-	return "h-" + html.EscapeString(slug)
+	return "#h-" + html.EscapeString(slug)
 }

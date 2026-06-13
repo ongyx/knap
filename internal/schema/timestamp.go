@@ -7,7 +7,7 @@ import (
 
 const (
 	dquote          = '"'
-	timestampLayout = "2026-06-12T15:20:00.123Z"
+	timestampLayout = "2006-01-02T15:04:05.000Z"
 )
 
 var (

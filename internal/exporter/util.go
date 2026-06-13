@@ -1,7 +1,9 @@
 package exporter
 
 import (
+	"archive/zip"
 	"errors"
+	"io"
 	"os"
 	"path"
 	"regexp"
@@ -35,4 +37,9 @@ func DirWithoutSlash(relpath string) string {
 		dir = dir[:len(dir)-1]
 	}
 	return dir
+}
+
+// Creates a file within the given zip file without compression.
+func CreateStored(zw *zip.Writer, name string) (io.Writer, error) {
+	return zw.CreateHeader(&zip.FileHeader{Name: name, Method: zip.Store})
 }

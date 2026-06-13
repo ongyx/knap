@@ -22,6 +22,9 @@ const (
 	EmphasisLevelItalic = iota + 1
 	// Represents a bold emphasis.
 	EmphasisLevelBold
+
+	// This is supposed to be based on the table size in the editor, I guess?
+	defaultTableRowWidth = 735.2
 )
 
 // Error returned by Converter.Convert when raw HTML fragments are not recognized. This error will be wrapped.
@@ -41,9 +44,9 @@ type Converter struct {
 	markdown goldmark.Markdown
 	resolver Resolver
 
-	source      []byte
-	markdownDoc *ast.Document
-	schemaDoc   *prosemirror.Node
+	source         []byte
+	markdownDoc    *ast.Document
+	prosemirrorDoc *prosemirror.Node
 }
 
 // Creates a new converter with the given resolver.
@@ -64,7 +67,7 @@ func New(res Resolver) *Converter {
 // Parses the Markdown text in src and converts its AST into a document schema node.
 func (cv *Converter) Convert(src []byte) (*prosemirror.Node, error) {
 	cv.source = src
-	cv.schemaDoc = nil
+	cv.prosemirrorDoc = nil
 
 	p := cv.markdown.Parser()
 	r := text.NewReader(src)
@@ -75,7 +78,13 @@ func (cv *Converter) Convert(src []byte) (*prosemirror.Node, error) {
 		return nil, err
 	}
 
-	return cv.schemaDoc, nil
+	if len(cv.prosemirrorDoc.Content) == 0 {
+		// Empty Markdown files will result in an invalidd ocument without content.
+		// This is invalid. so we need to create a blank document here.
+		cv.prosemirrorDoc = prosemirror.NewBlankDocumentNode()
+	}
+
+	return cv.prosemirrorDoc, nil
 }
 
 func (cv *Converter) walk(anode ast.Node, entering bool) (ast.WalkStatus, error) {
@@ -94,17 +103,31 @@ func (cv *Converter) walk(anode ast.Node, entering bool) (ast.WalkStatus, error)
 
 	if parent, ok := cv.contexts.Peek(); ok {
 		if snode != nil {
+			var p *prosemirror.Node
+			// The table extension does not generate a Paragraph/TextBlock AST node for nodes underneath a TableCell AST node,
+			// so we must wrap it in a Prosemirror paragraph to avoid the table getting erased in Outline.
+			if parent.snode.Type == prosemirror.NodeTableHeader || parent.snode.Type == prosemirror.NodeTableCell {
+				if len(parent.snode.Content) == 0 {
+					p = prosemirror.NewParagraphNode()
+					parent.snode.Content = []*prosemirror.Node{p}
+				} else {
+					p = parent.snode.Content[0]
+				}
+			} else {
+				p = parent.snode
+			}
+
 			// Append the node to its parent's content.
-			parent.snode.Content = append(parent.snode.Content, snode)
+			p.Content = append(p.Content, snode)
 		} else {
-			// No node was converted for this walk, preserve the parent node in the new context.
+			// No node was converted for this walk, use the parent node for the new context.
 			ctx.snode = parent.snode
 		}
 
 		ctx.marks = slices.Concat(parent.marks, marks)
 	} else {
 		// The first schema node is always the document root.
-		cv.schemaDoc = snode
+		cv.prosemirrorDoc = snode
 	}
 
 	if ctx.snode == nil {
@@ -136,6 +159,10 @@ func (cv *Converter) astToSchema(anode ast.Node) (snode *prosemirror.Node, marks
 
 	case *ast.Text:
 		v := string(an.Value(cv.source))
+		if v == "" && an.SoftLineBreak() {
+			// Don't generate a new text node. Empty text nodes may generate between AST wikilinks, but Prosemirror will not recognize the resulting text node as valid.
+			return nil, nil, ast.WalkContinue, nil
+		}
 		snode := prosemirror.NewTextNode(v)
 		snode.Marks = parent.marks
 		return snode, nil, ast.WalkContinue, nil
@@ -222,7 +249,12 @@ func (cv *Converter) astToSchema(anode ast.Node) (snode *prosemirror.Node, marks
 
 	case *east.TableCell:
 		_, isHeader := an.Parent().(*east.TableHeader)
-		snode := prosemirror.NewTableCellNode(isHeader)
+
+		// Every table cell row must have a column width.
+		// Otherwise, tables will mysteriously disappear from documents when opened in the editor.
+		colwidth := defaultTableRowWidth / float64(an.Parent().ChildCount())
+
+		snode := prosemirror.NewTableCellNode(isHeader, colwidth)
 		return snode, nil, ast.WalkContinue, nil
 
 	case *ast.HTMLBlock:

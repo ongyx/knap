@@ -188,7 +188,7 @@ func (e *Exporter) writeMetadata(zw *zip.Writer) error {
 	m := schema.NewExportMetadata(e.options.Identity)
 
 	// Write the export metadata.
-	mf, err := zw.Create(metadataFilename)
+	mf, err := CreateStored(zw, metadataFilename)
 	if err != nil {
 		return fmt.Errorf("exporter: couldn't create metadata %q in zip: %w", metadataFilename, err)
 	}
@@ -205,7 +205,7 @@ func (e *Exporter) writeMetadata(zw *zip.Writer) error {
 func (e *Exporter) writeCollection(zw *zip.Writer) error {
 	fname := e.collection.Metadata.Name + jsonExtension
 	// Write the collection to a JSON file of the same name.
-	cf, err := zw.Create(fname)
+	cf, err := CreateStored(zw, fname)
 	if err != nil {
 		return fmt.Errorf("exporter: couldn't create collection %q in zip: %w", fname, err)
 	}
@@ -225,7 +225,7 @@ func (e *Exporter) copyAttachment(zw *zip.Writer, att *schema.Attachment) error 
 	}
 
 	// Copy the attachment's contents to the zip file.
-	af, err := zw.Create(att.Key)
+	af, err := CreateStored(zw, att.Key)
 	if err != nil {
 		return fmt.Errorf("exporter: couldn't create attachment %q in zip: %w", att.Key, err)
 	}
@@ -313,7 +313,7 @@ func (e *Exporter) createDocumentFromNote(note *VaultFile) error {
 	return nil
 }
 
-// Creates a document for each parent directory in relpath.
+// Creates a blank document for each parent directory in relpath.
 func (e *Exporter) createParentDocuments(relpath string) error {
 	L := e.options.Logger
 
@@ -347,7 +347,7 @@ func (e *Exporter) createParentDocuments(relpath string) error {
 
 		L.Printf("Creating parent document %q\n", key)
 
-		doc, nn, err := e.createEmptyDocument(key)
+		doc, nn, err := e.createBlankDocument(key)
 		if err != nil {
 			return err
 		}
@@ -370,8 +370,8 @@ func (e *Exporter) createParentDocuments(relpath string) error {
 	return nil
 }
 
-// Creates an empty document for the relative path.
-func (e *Exporter) createEmptyDocument(relpath string) (*schema.Document, *schema.NavigationNode, error) {
+// Creates a blank document for the relative path.
+func (e *Exporter) createBlankDocument(relpath string) (*schema.Document, *schema.NavigationNode, error) {
 	id, err := uuid.NewRandom()
 	if err != nil {
 		return nil, nil, err

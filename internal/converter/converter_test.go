@@ -153,6 +153,18 @@ func TestConverter_Convert(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "empty",
+			markdown: "",
+			expected: &prosemirror.Node{
+				Type: prosemirror.NodeDocument,
+				Content: []*prosemirror.Node{
+					{
+						Type: prosemirror.NodeParagraph,
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

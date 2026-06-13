@@ -292,9 +292,9 @@ func (cv *Converter) astToProsemirror(anode ast.Node) (mnode *prosemirror.Node, 
 
 		// Internal links must be resolved externally as they may reference other notes or attachments in a vault.
 		if link.IsInternal() {
-			mnode, err = cv.resolver.ResolveInternalLink(link)
+			mnode, err = cv.resolver.ResolveInternalLink(link, pctx.marks)
 		} else {
-			mnode, err = resolveExternalLink(link)
+			mnode, err = resolveExternalLink(link, pctx)
 		}
 
 		// Do not handle the child nodes within the link-like nodes.
@@ -384,7 +384,7 @@ func extractCheckbox(li *ast.ListItem) (isChecked bool, ok bool) {
 	return cb.IsChecked, true
 }
 
-func resolveExternalLink(link *Link) (*prosemirror.Node, error) {
+func resolveExternalLink(link *Link, pctx context) (*prosemirror.Node, error) {
 	if link.Embed {
 		ff := util.ParseFileFormat(link.URL.Path)
 
@@ -398,9 +398,8 @@ func resolveExternalLink(link *Link) (*prosemirror.Node, error) {
 		return prosemirror.NewEmbedNode(link.URL.String()), nil
 	}
 
-	// Generate a text node with a link attached to it.
-	// Links are a little special; it is a formatting mark attached to a text node instead of being a standalone node.
+	// Generate a text node with a link mark attached to it.
 	tn := prosemirror.NewTextNode(string(link.Text))
-	tn.Marks = append(tn.Marks, prosemirror.NewLinkMark(link.URL.String()))
+	tn.Marks = append(slices.Clip(pctx.marks), prosemirror.NewLinkMark(link.URL.String()))
 	return tn, nil
 }

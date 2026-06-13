@@ -4,6 +4,7 @@ import (
 	"html"
 	"path/filepath"
 	"regexp"
+	"slices"
 
 	"github.com/ongyx/knap/internal/collections"
 	"github.com/ongyx/knap/internal/converter"
@@ -42,7 +43,7 @@ func (nr *NoteResolver) Attachments() collections.Set[*VaultFile] {
 }
 
 // Implements internal/converter.ResolveInternalLink.
-func (nr *NoteResolver) ResolveInternalLink(link *converter.Link) (node *prosemirror.Node, err error) {
+func (nr *NoteResolver) ResolveInternalLink(link *converter.Link, marks []prosemirror.Mark) (node *prosemirror.Node, err error) {
 	v := nr.exporter.Vault()
 
 	var vf *VaultFile
@@ -51,7 +52,7 @@ func (nr *NoteResolver) ResolveInternalLink(link *converter.Link) (node *prosemi
 		vf = v.Lookup(string(link.URL.Path))
 		if vf == nil {
 			// The internal link is invalid, return the default representation.
-			return converter.DefaultResolver.ResolveInternalLink(link)
+			return converter.DefaultResolver.ResolveInternalLink(link, marks)
 		}
 	} else {
 		// The internal link refers to this note.
@@ -59,7 +60,7 @@ func (nr *NoteResolver) ResolveInternalLink(link *converter.Link) (node *prosemi
 	}
 
 	if vf.FileFormat == util.FileNote {
-		node, err = nr.handleNoteFile(vf, link)
+		node, err = nr.handleNoteFile(vf, link, marks)
 	} else if vf.FileFormat == util.FileImage && link.Embed {
 		node, err = nr.handleImageFile(vf, link)
 	} else if vf.FileFormat == util.FileVideo && link.Embed {
@@ -117,7 +118,7 @@ func (nr *NoteResolver) handleAttachment(vf *VaultFile, link *converter.Link) (*
 	return prosemirror.NewAttachmentNode(vf.ID, title, vf.MimeType.String(), vf.Size), nil
 }
 
-func (nr *NoteResolver) handleNoteFile(vf *VaultFile, link *converter.Link) (*prosemirror.Node, error) {
+func (nr *NoteResolver) handleNoteFile(vf *VaultFile, link *converter.Link, marks []prosemirror.Mark) (*prosemirror.Node, error) {
 	// References to other notes are converted into links to the document URL.
 	href := vf.URLID.GenerateDocumentURL(vf.Title())
 
@@ -132,7 +133,7 @@ func (nr *NoteResolver) handleNoteFile(vf *VaultFile, link *converter.Link) (*pr
 	}
 
 	node := prosemirror.NewTextNode(title)
-	node.Marks = append(node.Marks, prosemirror.NewLinkMark(href))
+	node.Marks = append(slices.Clone(marks), prosemirror.NewLinkMark(href))
 	return node, nil
 }
 

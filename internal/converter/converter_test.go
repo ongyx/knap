@@ -165,6 +165,29 @@ func TestConverter_Convert(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "link with formatting",
+			markdown: "**_[Hello World!](https://google.com)_**",
+			expected: &prosemirror.Node{
+				Type: prosemirror.NodeDocument,
+				Content: []*prosemirror.Node{
+					{
+						Type: prosemirror.NodeParagraph,
+						Content: []*prosemirror.Node{
+							{
+								Type: prosemirror.NodeText,
+								Text: "Hello World!",
+								Marks: []prosemirror.Mark{
+									prosemirror.NewBoldMark(),
+									prosemirror.NewItalicMark(),
+									prosemirror.NewLinkMark("https://google.com"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

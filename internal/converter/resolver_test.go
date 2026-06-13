@@ -42,7 +42,7 @@ func TestDefaultResolverResolveInternalLink(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			node, err := DefaultResolver.ResolveInternalLink(tt.link)
+			node, err := DefaultResolver.ResolveInternalLink(tt.link, nil)
 			if err != nil {
 				t.Errorf("failed to resolve internal link: %v", err)
 			}

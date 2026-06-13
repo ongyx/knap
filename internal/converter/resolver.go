@@ -16,7 +16,7 @@ var DefaultResolver Resolver = &defaultResolver{}
 // Resolver resolves certain elements in the Markdown AST to output an Outline document correctly.
 type Resolver interface {
 	// Resolves an internal link to a schema node.
-	ResolveInternalLink(link *Link) (*prosemirror.Node, error)
+	ResolveInternalLink(link *Link, marks []prosemirror.Mark) (*prosemirror.Node, error)
 
 	// Resolves a text color to a hex color by name.
 	// If an invalid or empty string is returned, the resulting highlight will default to yellow in Outline.
@@ -26,7 +26,7 @@ type Resolver interface {
 type defaultResolver struct {
 }
 
-func (r *defaultResolver) ResolveInternalLink(link *Link) (*prosemirror.Node, error) {
+func (r *defaultResolver) ResolveInternalLink(link *Link, marks []prosemirror.Mark) (*prosemirror.Node, error) {
 	var buf bytes.Buffer
 
 	if link.Embed {
@@ -43,7 +43,9 @@ func (r *defaultResolver) ResolveInternalLink(link *Link) (*prosemirror.Node, er
 
 	buf.WriteString("]]")
 
-	return prosemirror.NewTextNode(buf.String()), nil
+	t := prosemirror.NewTextNode(buf.String())
+	t.Marks = marks
+	return t, nil
 }
 
 func (r *defaultResolver) ResolveColor(_ *ast.Document, _ *obsidian.TextColor) string {
